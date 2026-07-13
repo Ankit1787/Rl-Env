@@ -1,0 +1,53 @@
+services:
+  - type: web
+    name: warehouse-rl-environment
+    runtime: docker
+    rootDir: environment
+    dockerfilePath: ./Dockerfile.prod
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ENVIRONMENT_PORT
+        value: 3001
+      - key: ENVIRONMENT_CORS_ORIGIN
+        value: https://warehouse-rl-viewer.onrender.com
+      - key: WAREHOUSE_GRID_WIDTH
+        value: 8
+      - key: WAREHOUSE_GRID_HEIGHT
+        value: 8
+      - key: WAREHOUSE_MAX_STEPS
+        value: 100
+      - key: WAREHOUSE_ROBOT_START
+        value: 0,0
+      - key: WAREHOUSE_BOX_START
+        value: 2,2
+      - key: WAREHOUSE_GOAL_POSITION
+        value: 7,7
+      - key: WAREHOUSE_WALLS
+        value: 1,1;1,2;3,4;4,4
+      - key: WAREHOUSE_REWARD_STEP
+        value: -1
+      - key: WAREHOUSE_REWARD_INVALID
+        value: -5
+      - key: WAREHOUSE_REWARD_PICKUP
+        value: 10
+      - key: WAREHOUSE_REWARD_DELIVERY
+        value: 50
+      - key: WAREHOUSE_REWARD_WALL
+        value: -5
+
+  - type: web
+    name: warehouse-rl-viewer
+    runtime: docker
+    rootDir: viewer
+    dockerfilePath: ./Dockerfile.prod
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: NUXT_PUBLIC_ENVIRONMENT_BASE_URL
+        value: https://warehouse-rl-environment.onrender.com

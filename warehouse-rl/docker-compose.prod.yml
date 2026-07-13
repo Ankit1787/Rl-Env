@@ -1,0 +1,46 @@
+services:
+  environment:
+    build:
+      context: ./environment
+      dockerfile: Dockerfile.prod
+    env_file:
+      - .env.production.example
+    ports:
+      - "${ENVIRONMENT_PORT:-3001}:3001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3001/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  viewer:
+    build:
+      context: ./viewer
+      dockerfile: Dockerfile.prod
+    env_file:
+      - .env.production.example
+    ports:
+      - "${VIEWER_PORT:-3000}:3000"
+    depends_on:
+      environment:
+        condition: service_healthy
+
+  trainer:
+    build:
+      context: ./trainer
+      dockerfile: Dockerfile.prod
+    env_file:
+      - .env.production.example
+    depends_on:
+      environment:
+        condition: service_healthy
+    volumes:
+      - ./trainer/models:/app/models
+    profiles:
+      - trainer

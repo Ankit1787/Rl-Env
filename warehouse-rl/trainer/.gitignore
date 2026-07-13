@@ -1,0 +1,4 @@
+models/*.zip
+models/*.pkl
+models/*.pt
+models/*.pth
