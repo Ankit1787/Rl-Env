@@ -11,6 +11,10 @@ This README is written for someone running the project for the first time.
 cd ./warehouse-rl
 docker compose run --rm trainer
 ```
+### Go to Localhost:3000
+```bash
+http://localhost:3000/
+```
 ### Random mode
 
 ```bash
