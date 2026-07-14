@@ -1,121 +1,310 @@
-# Warehouse RL POC
+# Warehouse RL
 
-Production-quality proof of concept for a warehouse reinforcement learning environment.
+Warehouse RL is a Docker-based reinforcement-learning project. A robot must navigate a warehouse, reach a box, pick it up, carry it around walls, and drop it on a goal. The repository includes a browser viewer, a TypeScript simulation API, and a Python trainer with random and PPO modes.
 
-The project is intentionally split into services:
+This README is written for someone running the project for the first time.
 
-- `environment`: Node.js + TypeScript service that owns simulation state and rewards.
-- `trainer`: Python-only-in-Docker service for Gymnasium, Stable-Baselines3, and PyTorch.
-- `viewer`: Nuxt 4 + Vue 3 UI for visualizing the environment.
-- `shared`: shared API contracts and documentation.
+## Quick start
 
-## Current Scope
-
-Phase 1 initialized the monorepo, Docker layout, TypeScript configuration, Python trainer configuration, and Nuxt viewer configuration.
-
-Phase 2 adds the in-process warehouse simulation domain model in `environment/src/domain`.
-
-Implemented in Phase 2:
-
-- Grid bounds and wall validation.
-- Robot movement.
-- Box pickup.
-- Box movement while carried.
-- Delivery by dropping the box on the goal.
-- Configurable rewards.
-- Episode step counting and max-step termination.
-
-Phase 3 exposes the environment through REST endpoints and a WebSocket event stream.
-
-Implemented in Phase 3:
-
-- `GET /health`
-- `GET /state`
-- `POST /reset`
-- `POST /step`
-- `GET /events` WebSocket stream
-
-Viewer rendering and trainer logic come in later phases.
-
-Phase 4 adds the Nuxt viewer:
-
-- Warehouse grid rendering.
-- Robot, box, goal, and wall visualization.
-- Action controls for movement, pickup, drop, and reset.
-- Reward, episode, step count, last action, robot status, and WebSocket status.
-- Live updates from the environment `/events` stream.
-
-Phase 5 adds the Python Gymnasium wrapper:
-
-- `WarehouseGymEnv`
-- Discrete action space with six actions.
-- Normalized numeric observation vector.
-- HTTP client for `/state`, `/reset`, and `/step`.
-- Unit tests using fake clients so wrapper behavior is testable without a live Node service.
-
-Phase 6 adds the random agent:
-
-- Samples from the Gymnasium action space.
-- Runs configurable episode counts.
-- Supports deterministic action-space seeding.
-- Prints per-episode summaries with steps, total reward, termination flags, and final reason.
-
-Phase 7 adds PPO training:
-
-- Stable-Baselines3 PPO with `MlpPolicy`.
-- Configurable timesteps, learning rate, rollout steps, batch size, gamma, and evaluation episodes.
-- Saves trained model artifacts to `trainer/models`.
-- Prints model path and evaluation mean reward.
-
-## Run
+From the directory that contains the `warehouse-rl` folder:
 
 ```bash
-cp .env.example .env
-docker compose up --build
+cd ./warehouse-rl
+docker compose up --build -d environment viewer
 ```
 
-For local development without Docker:
+Open:
+
+- Viewer: <http://localhost:3000>
+- Environment health check: <http://localhost:3001/health>
+
+Run one trainer job from another terminal:
 
 ```bash
-cd environment
-npm run dev
-
-cd ../viewer
-npm run dev
+cd ./warehouse-rl
+docker compose run --rm trainer
 ```
 
-The trainer service is configured but not started by default. Run it with:
+The `warehouse-rl` root does **not** contain a `package.json`. Do not run `npm install` or `npm run dev` from the root. The Node applications have separate package files under `environment/` and `viewer/`, and Docker installs their dependencies inside their containers.
 
-```bash
-docker compose --profile trainer up --build
-```
-
-Random agent settings:
+## Project structure
 
 ```text
-TRAINER_MODE=random
-RANDOM_AGENT_EPISODES=5
-RANDOM_AGENT_SEED=42
+warehouse-rl/
+├── environment/              Node/TypeScript simulation and API
+│   ├── src/api/              REST and WebSocket endpoints
+│   ├── src/domain/           Grid, movement, pickup, drop, and rewards
+│   └── test/                 Environment and API tests
+├── trainer/                  Python reinforcement-learning job
+│   ├── src/warehouse_trainer/
+│   ├── tests/                Trainer tests
+│   └── models/               Saved PPO models
+├── viewer/                   Nuxt/Vue browser interface
+│   ├── components/           Grid, controls, and statistics
+│   ├── stores/               API, WebSocket, and frontend state
+│   └── types/                TypeScript API types
+├── shared/                   Shared-contract documentation
+├── docker-compose.yml        Local service orchestration
+└── .env.example              Runtime defaults
 ```
 
-PPO settings:
+## Architecture and responsibilities
 
 ```text
-TRAINER_MODE=ppo
-PPO_TOTAL_TIMESTEPS=2000
-PPO_LEARNING_RATE=0.0003
-PPO_N_STEPS=64
-PPO_BATCH_SIZE=32
-PPO_GAMMA=0.99
-PPO_MODEL_PATH=/app/models/warehouse_ppo.zip
-PPO_EVAL_EPISODES=3
+Browser
+  |
+  | HTTP actions and WebSocket events
+  v
+Viewer (Nuxt/Vue) <----> Environment API (Node/TypeScript)
+                              ^
+                              | HTTP state/reset/step calls
+                              |
+                        Trainer (Python)
 ```
 
-The trainer is intended to run in Docker so the host machine does not need Python, Gymnasium, PyTorch, or Stable-Baselines3 installed.
+### Environment
 
-## Trainer Observation Vector
+Location: `environment/`
 
-`WarehouseGymEnv` returns an `np.float32` vector with 11 values:
+Libraries: Node.js, TypeScript, Fastify, Zod, and `@fastify/websocket`.
+
+The environment owns the authoritative state: robot position, box position, goal, walls, rewards, episode number, step count, and terminal state. The viewer and trainer request actions; only the environment decides whether they are valid and what reward they receive.
+
+Important files:
+
+```text
+environment/src/main.ts                         Service entry point
+environment/src/app.ts                          Fastify setup
+environment/src/config.ts                       Configuration parsing
+environment/src/api/routes.ts                    REST endpoints
+environment/src/api/websocket.ts                 Live event endpoint
+environment/src/domain/warehouseEnvironment.ts  Simulation rules
+environment/src/domain/grid.ts                  Grid and wall checks
+environment/src/domain/rewardCalculator.ts      Reward mapping
+```
+
+API endpoints:
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/health` | Readiness check |
+| `GET` | `/state` | Current warehouse state |
+| `POST` | `/reset` | Start a new episode |
+| `POST` | `/step` | Apply one action |
+| WebSocket | `/events` | Push state updates to the viewer |
+
+### Viewer
+
+Location: `viewer/`
+
+Libraries: Nuxt 4, Vue 3, Pinia, Tailwind CSS, and TypeScript.
+
+The viewer runs on port `3000`. It renders the grid, robot, box, goal, walls, reward, episode, step count, last action, and WebSocket status. Manual controls send `/step` and `/reset` requests to the environment.
+
+Important files:
+
+```text
+viewer/app.vue                         Main page
+viewer/stores/environment.ts           REST, WebSocket, and UI state
+viewer/components/WarehouseGrid.vue    Grid rendering
+viewer/components/ActionControls.vue   Action buttons
+viewer/components/EnvironmentStats.vue Episode and reward information
+```
+
+### Trainer
+
+Location: `trainer/`
+
+Libraries: Python, Gymnasium, Stable-Baselines3, PyTorch, NumPy, and Requests.
+
+The trainer is a finite command job, not a permanent server. It runs configured episodes or PPO timesteps, prints results, optionally saves a model, and exits.
+
+Important files:
+
+```text
+trainer/src/warehouse_trainer/main.py         Entry point and mode selection
+trainer/src/warehouse_trainer/client.py       Environment HTTP client
+trainer/src/warehouse_trainer/gym_env.py      Gymnasium adapter
+trainer/src/warehouse_trainer/actions.py      Integer/action mapping
+trainer/src/warehouse_trainer/random_agent.py Random baseline
+trainer/src/warehouse_trainer/ppo_trainer.py  PPO training and evaluation
+trainer/src/warehouse_trainer/config.py       Trainer configuration
+trainer/models/                               Persistent model output
+```
+
+## How Python connects to the environment
+
+Docker Compose creates a private network and DNS names for services. The trainer calls:
+
+```text
+http://environment:3001
+```
+
+Inside Docker, `environment` resolves to the environment container. `localhost:3001` would be incorrect inside the trainer because container-local `localhost` refers to the trainer itself.
+
+```text
+Agent
+ -> WarehouseGymEnv
+ -> HttpWarehouseClient
+ -> Python requests
+ -> POST http://environment:3001/step
+ -> TypeScript environment
+ -> JSON state + reward + done
+ -> NumPy observation
+ -> Agent
+```
+
+Calls map as follows:
+
+```text
+client.state()       -> GET  /state
+client.reset()       -> POST /reset
+client.step(action)  -> POST /step
+```
+
+Docker waits for the environment health check before starting a trainer job.
+
+## Understanding `docker compose run --rm trainer`
+
+Use:
+
+```bash
+docker compose run --rm trainer
+```
+
+It is `docker compose run`, not `docker start`.
+
+| Part | Meaning |
+|---|---|
+| `docker compose` | Read this repository's Compose configuration |
+| `run` | Create a one-time job container |
+| `--rm` | Delete that stopped container after completion |
+| `trainer` | Run the Compose service named `trainer` |
+
+`--rm` does not delete source code, images, or PPO models. The model directory is mounted from `/app/models` to `trainer/models`, so saved models survive.
+
+Without `--rm`, training still completes but Docker retains a stopped container. Repeated runs create stopped-container clutter visible in `docker ps -a`.
+
+The trainer uses a Compose profile so normal startup does not automatically train, reset the shared environment, or interfere with manual viewer actions.
+
+## Start, inspect, and stop
+
+Always enter the project first:
+
+```bash
+cd ./warehouse-rl
+```
+
+Start the API and viewer:
+
+```bash
+docker compose up --build -d environment viewer
+```
+
+Check status and logs:
+
+```bash
+docker compose ps
+docker compose logs -f environment viewer
+```
+
+Stop services:
+
+```bash
+docker compose down
+```
+
+Run one trainer job:
+
+```bash
+docker compose run --rm trainer
+```
+
+Rebuild the trainer first:
+
+```bash
+docker compose run --rm --build trainer
+```
+
+Profile-based alternative:
+
+```bash
+docker compose --profile trainer up --build trainer
+```
+
+The trainer exits when its configured work finishes. Exit code `0` means success.
+
+## Trainer modes
+
+### Random mode
+
+```bash
+docker compose run --rm \
+  -e TRAINER_MODE=random \
+  -e RANDOM_AGENT_EPISODES=10 \
+  -e RANDOM_AGENT_SEED=42 \
+  trainer
+```
+
+Random mode samples one of six actions on every step. It does not remember, update a model, or improve. It is used to test API connectivity, action handling, rewards, reset behavior, and viewer updates.
+
+Even when it reaches the box, it has only a `1/6` chance of choosing `pickup` next. Repeated mistakes are expected.
+
+| Variable | Meaning |
+|---|---|
+| `TRAINER_MODE=random` | Select random mode |
+| `RANDOM_AGENT_EPISODES` | Episodes to run |
+| `RANDOM_AGENT_SEED` | Reproduce the same random sequence |
+
+### PPO learning mode
+
+```bash
+docker compose run --rm \
+  -e TRAINER_MODE=ppo \
+  -e PPO_TOTAL_TIMESTEPS=100000 \
+  trainer
+```
+
+PPO uses Stable-Baselines3 `MlpPolicy`, a PyTorch multilayer perceptron trained from scratch. It is not a pretrained language or vision model. `2000` timesteps is useful for a short pipeline test; `100000` gives more opportunity to learn but takes longer.
+
+| Variable | Default | Meaning |
+|---|---:|---|
+| `PPO_TOTAL_TIMESTEPS` | `2000` | Environment interactions used for training |
+| `PPO_LEARNING_RATE` | `0.0003` | Neural-network update size |
+| `PPO_N_STEPS` | `64` | Rollout length before an update |
+| `PPO_BATCH_SIZE` | `32` | Samples in each minibatch |
+| `PPO_GAMMA` | `0.99` | Importance of future rewards |
+| `PPO_MODEL_PATH` | `/app/models/warehouse_ppo.zip` | Saved model path |
+| `PPO_EVAL_EPISODES` | `3` | Evaluation episodes after training |
+
+Override multiple variables for one container:
+
+```bash
+docker compose run --rm \
+  -e TRAINER_MODE=ppo \
+  -e PPO_TOTAL_TIMESTEPS=100000 \
+  -e PPO_N_STEPS=128 \
+  -e PPO_BATCH_SIZE=64 \
+  -e PPO_EVAL_EPISODES=10 \
+  trainer
+```
+
+`-e NAME=value` overrides an environment variable for that run only.
+
+## How PPO learns
+
+The Gymnasium action space is:
+
+```text
+0 move_up
+1 move_down
+2 move_left
+3 move_right
+4 pickup
+5 drop
+```
+
+Each observation is an 11-value normalized NumPy vector:
 
 ```text
 robot_x
@@ -131,74 +320,197 @@ done
 positive_reward_scaled
 ```
 
-Coordinates and step progress are normalized to `0..1`.
-
-## Trainer Action Space
-
-The Gymnasium action space is `Discrete(6)`:
+The application does not give PPO a normal list of previous actions. Stable-Baselines3 collects transitions:
 
 ```text
-0 -> move_up
-1 -> move_down
-2 -> move_left
-3 -> move_right
-4 -> pickup
-5 -> drop
+(observation, action, reward, next observation, done)
 ```
 
-## Public API Targets
+It groups transitions into rollouts and changes the neural-network weights. Actions leading to higher long-term rewards become more likely in similar states; penalized actions become less likely.
 
-The environment service exposes:
+Default rewards:
 
-- `GET /health`
-- `GET /state`
-- `POST /reset`
-- `POST /step`
-- `GET /events` as a WebSocket stream
+| Event | Reward | Purpose |
+|---|---:|---|
+| Valid movement | `-1` | Prefer shorter routes |
+| Invalid action | `-5` | Avoid impossible behavior |
+| Wall collision | `-5` | Avoid blocked cells |
+| Successful pickup | `+10` | Reach and pick up the box |
+| Successful delivery | `+50` | Complete the task |
 
-Example step request:
+The desired learned sequence is:
+
+```text
+move toward box -> pickup -> move toward goal -> drop
+```
+
+Early training will still look random because the network starts untrained. The current observation also omits the complete wall map, so PPO discovers walls through collision penalties. Do not manually reset or control the viewer during PPO training because the project currently has one shared environment episode.
+
+## Persistent configuration
+
+`docker-compose.yml` currently loads container settings from `.env.example`. Edit that file for persistent project defaults, or pass `-e` overrides to a one-time trainer command.
+
+| Variable | Purpose |
+|---|---|
+| `ENVIRONMENT_PORT` | Host API port |
+| `VIEWER_PORT` | Host viewer port |
+| `WAREHOUSE_GRID_WIDTH` / `HEIGHT` | Grid dimensions |
+| `WAREHOUSE_MAX_STEPS` | Episode action limit |
+| `WAREHOUSE_ROBOT_START` | Robot start as `x,y` |
+| `WAREHOUSE_BOX_START` | Box start as `x,y` |
+| `WAREHOUSE_GOAL_POSITION` | Goal as `x,y` |
+| `WAREHOUSE_WALLS` | Semicolon-separated wall coordinates |
+| `WAREHOUSE_REWARD_STEP` | Ordinary movement reward |
+| `WAREHOUSE_REWARD_INVALID` | Invalid-action penalty |
+| `WAREHOUSE_REWARD_PICKUP` | Pickup reward |
+| `WAREHOUSE_REWARD_DELIVERY` | Delivery reward |
+| `WAREHOUSE_REWARD_WALL` | Wall penalty |
+| `TRAINER_REQUEST_TIMEOUT_SECONDS` | HTTP request timeout |
+
+Example walls:
+
+```text
+WAREHOUSE_WALLS=1,1;1,2;3,4;4,4
+```
+
+## Manual API checks
 
 ```bash
+curl http://localhost:3001/health
+curl http://localhost:3001/state
+curl -X POST http://localhost:3001/reset
 curl -X POST http://localhost:3001/step \
   -H 'content-type: application/json' \
   -d '{"action":"move_right"}'
 ```
 
-Example reset request:
+## Troubleshooting
+
+### `localhost:3000` is not showing the viewer
+
+```bash
+cd ./warehouse-rl
+docker compose ps
+docker compose logs --tail=100 viewer
+curl -I http://localhost:3000
+```
+
+Expected services are `environment` as healthy on port `3001` and `viewer` as up on port `3000`.
+
+If the viewer is missing:
+
+```bash
+docker compose up --build -d viewer
+```
+
+### Viewer says environment state is unavailable
+
+```bash
+curl http://localhost:3001/health
+curl http://localhost:3001/state
+docker compose logs --tail=100 environment
+```
+
+The host browser uses `http://localhost:3001`; the trainer container uses `http://environment:3001`.
+
+After configuration changes, recreate services:
+
+```bash
+docker compose up --build -d --force-recreate environment viewer
+```
+
+### Viewer is connected but controls are disabled
+
+If the UI shows `100 / 100`, `max_steps_reached`, and `done`, the episode finished normally. Select **Reset Episode** or run:
 
 ```bash
 curl -X POST http://localhost:3001/reset
 ```
 
-WebSocket events are JSON payloads:
+### Trainer shows `Exited (0)`
 
-```json
-{
-  "type": "step",
-  "result": {
-    "reward": -1,
-    "done": false
-  }
-}
+The finite job completed successfully. Start another job when needed:
+
+```bash
+docker compose run --rm trainer
 ```
 
-## Environment Domain API
+For profile-created containers:
 
-The in-process TypeScript API is available before the REST layer:
-
-```ts
-const environment = new WarehouseEnvironment(options);
-
-environment.reset();
-environment.step('move_right');
-environment.getState();
+```bash
+docker compose --profile trainer ps -a
+docker compose --profile trainer logs trainer
 ```
 
-Supported actions:
+### Trainer cannot connect
 
-- `move_up`
-- `move_down`
-- `move_left`
-- `move_right`
-- `pickup`
-- `drop`
+```bash
+docker compose up -d environment
+curl http://localhost:3001/health
+docker compose run --rm trainer
+```
+
+Inspect the URL seen by Python:
+
+```bash
+docker compose run --rm trainer \
+  python -c "from warehouse_trainer.config import load_config; print(load_config().environment_base_url)"
+```
+
+It should print `http://environment:3001`.
+
+### Trainer repeats mistakes
+
+Random mode never learns. Use PPO with more timesteps:
+
+```bash
+docker compose run --rm \
+  -e TRAINER_MODE=ppo \
+  -e PPO_TOTAL_TIMESTEPS=100000 \
+  trainer
+```
+
+### Clean restart
+
+```bash
+docker compose down
+docker compose up --build -d environment viewer
+```
+
+Do not add `-v` unless you intentionally want to remove Docker volumes.
+
+## Tests
+
+The first command is a Docker Compose command. `npm test` runs inside the
+`environment` container, whose source folder has its own `package.json`; it is
+not an npm command run from the `warehouse-rl` project root.
+
+```bash
+docker compose run --rm environment npm test
+docker compose run --rm trainer pytest
+```
+
+## Recommended workflow
+
+```bash
+# Terminal 1
+cd ./warehouse-rl
+docker compose up --build -d environment viewer
+docker compose ps
+curl http://localhost:3001/health
+
+# Terminal 2: short random smoke test
+cd ./warehouse-rl
+docker compose run --rm \
+  -e TRAINER_MODE=random \
+  -e RANDOM_AGENT_EPISODES=5 \
+  trainer
+
+# Or actual PPO learning
+docker compose run --rm \
+  -e TRAINER_MODE=ppo \
+  -e PPO_TOTAL_TIMESTEPS=100000 \
+  trainer
+```
+
+Open <http://localhost:3000> to observe the environment. Remember: the trainer is a finite job, `--rm` cleans up its temporary container, random mode does not learn, and PPO requires enough experience and an uninterrupted environment to improve.
