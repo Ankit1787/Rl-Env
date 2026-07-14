@@ -12,10 +12,22 @@ cd ./warehouse-rl
 docker compose up --build -d
 docker compose run --rm trainer
 ```
+then run ppo mode for train the model
+
+```bash
+docker compose run --rm \
+  -e TRAINER_MODE=ppo \
+  -e PPO_TOTAL_TIMESTEPS=2000 \
+  trainer
+```
+
 ### Go to Localhost:3000
+
 ```bash
 http://localhost:3000/
 ```
+There are two modes  (by default mode is random).You have to pass environment valiable for eg: TRAINER_MODE=ppo
+
 ### Random mode
 
 ```bash
@@ -25,7 +37,7 @@ docker compose run --rm \
   -e RANDOM_AGENT_SEED=42 \
   trainer
 ```
-### PPO mode
+### PPO mode ( Recommended )
 
 ```bash
 docker compose run --rm \
