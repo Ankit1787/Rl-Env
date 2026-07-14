@@ -29,6 +29,7 @@ docker compose run --rm \
 ```bash
 docker compose run --rm \
   -e TRAINER_MODE=ppo \
+  -e PPO_TOTAL_TIMESTEPS=2000 \
   trainer
 ```
 
