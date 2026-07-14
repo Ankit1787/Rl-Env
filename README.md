@@ -9,6 +9,7 @@ This README is written for someone running the project for the first time.
 
 ```bash
 cd ./warehouse-rl
+docker compose up --build -d
 docker compose run --rm trainer
 ```
 ### Go to Localhost:3000
