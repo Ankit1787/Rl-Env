@@ -6,23 +6,27 @@ This README is written for someone running the project for the first time.
 
 ## Quick start
 
-From the directory that contains the `warehouse-rl` folder:
-
-```bash
-cd ./warehouse-rl
-docker compose up --build -d environment viewer
-```
-
-Open:
-
-- Viewer: <http://localhost:3000>
-- Environment health check: <http://localhost:3001/health>
-
-Run one trainer job from another terminal:
 
 ```bash
 cd ./warehouse-rl
 docker compose run --rm trainer
+```
+### Random mode
+
+```bash
+docker compose run --rm \
+  -e TRAINER_MODE=random \
+  -e RANDOM_AGENT_EPISODES=10 \
+  -e RANDOM_AGENT_SEED=42 \
+  trainer
+```
+### PPO mode
+
+```bash
+docker compose run --rm \
+  -e TRAINER_MODE=ppo \
+  -e PPO_TOTAL_TIMESTEPS=100000 \
+  trainer
 ```
 
 The `warehouse-rl` root does **not** contain a `package.json`. Do not run `npm install` or `npm run dev` from the root. The Node applications have separate package files under `environment/` and `viewer/`, and Docker installs their dependencies inside their containers.
@@ -132,107 +136,6 @@ trainer/src/warehouse_trainer/config.py       Trainer configuration
 trainer/models/                               Persistent model output
 ```
 
-## How Python connects to the environment
-
-Docker Compose creates a private network and DNS names for services. The trainer calls:
-
-```text
-http://environment:3001
-```
-
-Inside Docker, `environment` resolves to the environment container. `localhost:3001` would be incorrect inside the trainer because container-local `localhost` refers to the trainer itself.
-
-```text
-Agent
- -> WarehouseGymEnv
- -> HttpWarehouseClient
- -> Python requests
- -> POST http://environment:3001/step
- -> TypeScript environment
- -> JSON state + reward + done
- -> NumPy observation
- -> Agent
-```
-
-Calls map as follows:
-
-```text
-client.state()       -> GET  /state
-client.reset()       -> POST /reset
-client.step(action)  -> POST /step
-```
-
-Docker waits for the environment health check before starting a trainer job.
-
-## Understanding `docker compose run --rm trainer`
-
-Use:
-
-```bash
-docker compose run --rm trainer
-```
-
-It is `docker compose run`, not `docker start`.
-
-| Part | Meaning |
-|---|---|
-| `docker compose` | Read this repository's Compose configuration |
-| `run` | Create a one-time job container |
-| `--rm` | Delete that stopped container after completion |
-| `trainer` | Run the Compose service named `trainer` |
-
-`--rm` does not delete source code, images, or PPO models. The model directory is mounted from `/app/models` to `trainer/models`, so saved models survive.
-
-Without `--rm`, training still completes but Docker retains a stopped container. Repeated runs create stopped-container clutter visible in `docker ps -a`.
-
-The trainer uses a Compose profile so normal startup does not automatically train, reset the shared environment, or interfere with manual viewer actions.
-
-## Start, inspect, and stop
-
-Always enter the project first:
-
-```bash
-cd ./warehouse-rl
-```
-
-Start the API and viewer:
-
-```bash
-docker compose up --build -d environment viewer
-```
-
-Check status and logs:
-
-```bash
-docker compose ps
-docker compose logs -f environment viewer
-```
-
-Stop services:
-
-```bash
-docker compose down
-```
-
-Run one trainer job:
-
-```bash
-docker compose run --rm trainer
-```
-
-Rebuild the trainer first:
-
-```bash
-docker compose run --rm --build trainer
-```
-
-Profile-based alternative:
-
-```bash
-docker compose --profile trainer up --build trainer
-```
-
-The trainer exits when its configured work finishes. Exit code `0` means success.
 
 ## Trainer modes
 
@@ -291,87 +194,7 @@ docker compose run --rm \
 
 `-e NAME=value` overrides an environment variable for that run only.
 
-## How PPO learns
 
-The Gymnasium action space is:
-
-```text
-0 move_up
-1 move_down
-2 move_left
-3 move_right
-4 pickup
-5 drop
-```
-
-Each observation is an 11-value normalized NumPy vector:
-
-```text
-robot_x
-robot_y
-box_x
-box_y
-goal_x
-goal_y
-robot_carrying_box
-box_delivered
-step_progress
-done
-positive_reward_scaled
-```
-
-The application does not give PPO a normal list of previous actions. Stable-Baselines3 collects transitions:
-
-```text
-(observation, action, reward, next observation, done)
-```
-
-It groups transitions into rollouts and changes the neural-network weights. Actions leading to higher long-term rewards become more likely in similar states; penalized actions become less likely.
-
-Default rewards:
-
-| Event | Reward | Purpose |
-|---|---:|---|
-| Valid movement | `-1` | Prefer shorter routes |
-| Invalid action | `-5` | Avoid impossible behavior |
-| Wall collision | `-5` | Avoid blocked cells |
-| Successful pickup | `+10` | Reach and pick up the box |
-| Successful delivery | `+50` | Complete the task |
-
-The desired learned sequence is:
-
-```text
-move toward box -> pickup -> move toward goal -> drop
-```
-
-Early training will still look random because the network starts untrained. The current observation also omits the complete wall map, so PPO discovers walls through collision penalties. Do not manually reset or control the viewer during PPO training because the project currently has one shared environment episode.
-
-## Persistent configuration
-
-`docker-compose.yml` currently loads container settings from `.env.example`. Edit that file for persistent project defaults, or pass `-e` overrides to a one-time trainer command.
-
-| Variable | Purpose |
-|---|---|
-| `ENVIRONMENT_PORT` | Host API port |
-| `VIEWER_PORT` | Host viewer port |
-| `WAREHOUSE_GRID_WIDTH` / `HEIGHT` | Grid dimensions |
-| `WAREHOUSE_MAX_STEPS` | Episode action limit |
-| `WAREHOUSE_ROBOT_START` | Robot start as `x,y` |
-| `WAREHOUSE_BOX_START` | Box start as `x,y` |
-| `WAREHOUSE_GOAL_POSITION` | Goal as `x,y` |
-| `WAREHOUSE_WALLS` | Semicolon-separated wall coordinates |
-| `WAREHOUSE_REWARD_STEP` | Ordinary movement reward |
-| `WAREHOUSE_REWARD_INVALID` | Invalid-action penalty |
-| `WAREHOUSE_REWARD_PICKUP` | Pickup reward |
-| `WAREHOUSE_REWARD_DELIVERY` | Delivery reward |
-| `WAREHOUSE_REWARD_WALL` | Wall penalty |
-| `TRAINER_REQUEST_TIMEOUT_SECONDS` | HTTP request timeout |
-
-Example walls:
-
-```text
-WAREHOUSE_WALLS=1,1;1,2;3,4;4,4
-```
 
 ## Manual API checks
 
