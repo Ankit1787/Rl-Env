@@ -8,8 +8,6 @@ This README is written for someone running the project for the first time.
 
 
 ```bash
-cd ./warehouse-rl
-docker compose up --build -d
 docker compose run --rm trainer
 ```
 then run ppo mode for train the model
@@ -46,12 +44,11 @@ docker compose run --rm \
   trainer
 ```
 
-The `warehouse-rl` root does **not** contain a `package.json`. Do not run `npm install` or `npm run dev` from the root. The Node applications have separate package files under `environment/` and `viewer/`, and Docker installs their dependencies inside their containers.
+The root does **not** contain a `package.json`. Do not run `npm install` or `npm run dev` from the root. The Node applications have separate package files under `environment/` and `viewer/`, and Docker installs their dependencies inside their containers.
 
 ## Project structure
 
 ```text
-warehouse-rl/
 ├── environment/              Node/TypeScript simulation and API
 │   ├── src/api/              REST and WebSocket endpoints
 │   ├── src/domain/           Grid, movement, pickup, drop, and rewards
@@ -229,7 +226,7 @@ curl -X POST http://localhost:3001/step \
 ### `localhost:3000` is not showing the viewer
 
 ```bash
-cd ./warehouse-rl
+
 docker compose ps
 docker compose logs --tail=100 viewer
 curl -I http://localhost:3000
@@ -319,12 +316,6 @@ docker compose up --build -d environment viewer
 
 Do not add `-v` unless you intentionally want to remove Docker volumes.
 
-## Tests
-
-The first command is a Docker Compose command. `npm test` runs inside the
-`environment` container, whose source folder has its own `package.json`; it is
-not an npm command run from the `warehouse-rl` project root.
-
 ```bash
 docker compose run --rm environment npm test
 docker compose run --rm trainer pytest
@@ -334,13 +325,13 @@ docker compose run --rm trainer pytest
 
 ```bash
 # Terminal 1
-cd ./warehouse-rl
+
 docker compose up --build -d environment viewer
 docker compose ps
 curl http://localhost:3001/health
 
 # Terminal 2: short random smoke test
-cd ./warehouse-rl
+
 docker compose run --rm \
   -e TRAINER_MODE=random \
   -e RANDOM_AGENT_EPISODES=5 \
