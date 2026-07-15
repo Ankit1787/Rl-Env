@@ -1,363 +1,420 @@
-# Warehouse RL
+# Warehouse RL Control
 
-Warehouse RL is a Docker-based reinforcement-learning project. A robot must navigate a warehouse, reach a box, pick it up, carry it around walls, and drop it on a goal. The repository includes a browser viewer, a TypeScript simulation API, and a Python trainer with random and PPO modes.
+Warehouse RL Control is a beginner-friendly reinforcement-learning project. A
+robot moves around a warehouse, finds a box, picks it up, carries it to a goal,
+and drops it there. You can watch everything happen live in a browser and start
+training without typing environment variables for every run.
 
-This README is written for someone running the project for the first time.
+This project is useful for learning:
 
-## Browser-based training
+- what an agent, environment, action, observation, reward, step, and episode are;
+- the difference between random behavior and a learning algorithm;
+- how a Python reinforcement-learning trainer communicates with an API;
+- how a Vue frontend can display a live training environment; and
+- how Docker Compose runs several connected services together.
 
-Start the application once:
+No previous reinforcement-learning experience is required.
+
+## Reinforcement-learning words in simple language
+
+| Word | Meaning in this project |
+|---|---|
+| Agent | The decision-maker. In PPO mode, this is the neural-network policy controlling the robot. |
+| Environment | The warehouse simulation containing the grid, robot, box, goal, walls, and rules. |
+| Observation | The information the trainer receives about the current warehouse state. |
+| Action | One choice made by the agent, such as `move_right` or `pickup`. |
+| Step | One action followed by the environment's new state and reward. |
+| Reward | A number telling the agent whether the latest action was useful or harmful. |
+| Episode | One complete attempt, from reset until delivery or the maximum-step limit. |
+| Policy | The strategy PPO learns for choosing an action from an observation. |
+| Training | Collecting experience and changing the policy's neural-network weights. |
+| Evaluation | Testing the learned policy without changing its weights. |
+
+## What the robot is trying to learn
+
+The task is:
+
+```text
+Move to the box → pick up the box → move to the goal → drop the box
+```
+
+The robot can choose one of six actions:
+
+```text
+move up     move down     move left     move right     pick up     drop
+```
+
+The robot is not given the correct sequence. It receives rewards and penalties
+after actions. PPO uses that feedback to make useful actions more likely over
+time.
+
+## Quick start
+
+### 1. Install the requirements
+
+Install:
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- Git
+
+Start Docker Desktop before running the project. Node.js and Python do not need
+to be installed separately because Docker supplies them inside containers.
+
+### 2. Download the project
+
+```bash
+git clone https://github.com/Ankit1787/Rl-Env.git
+cd Rl-Env
+```
+
+If the project is already on your computer, open a terminal in its root folder.
+The root is the folder containing `docker-compose.yml`.
+
+### 3. Start the application
 
 ```bash
 docker compose up --build -d
 ```
 
-Open <http://localhost:3000>. The **Training setup** panel lets a user choose
-Random or PPO mode, grid rows and columns, robot/box/goal positions, episode
-limits, training timesteps, and algorithm settings. Select **Start training**;
-you do not need to pass those values as environment variables for every run.
+The first build can take several minutes because the trainer downloads Python,
+PyTorch, Stable-Baselines3, and other dependencies.
 
-Environment variables remain available as deployment defaults and for scripted
-or automated runs. The trainer API is exposed on port `8000` by default.
+### 4. Open the browser interface
 
-## Quick start
+Open <http://localhost:3000>.
 
+You should see `CONNECTED` near the top-right. You can now configure and start a
+training run from the **Training setup** panel.
 
-```bash
-docker compose run --rm trainer
-```
-then run ppo mode for train the model
+### 5. Stop the application
 
 ```bash
-docker compose run --rm \
-  -e TRAINER_MODE=ppo \
-  -e PPO_TOTAL_TIMESTEPS=2000 \
-  trainer
+docker compose down
 ```
 
-### Go to Localhost:3000
+Do not add `-v` unless you intentionally want to remove Docker volumes.
 
-```bash
-http://localhost:3000/
-```
-There are two modes  (by default mode is random).You have to pass environment valiable for eg: TRAINER_MODE=ppo
+## Understanding the screen
 
-### Random mode
+### Warehouse grid
 
-```bash
-docker compose run --rm \
-  -e TRAINER_MODE=random \
-  -e RANDOM_AGENT_EPISODES=10 \
-  -e RANDOM_AGENT_SEED=42 \
-  trainer
-```
-### PPO mode ( Recommended )
+| Appearance | Meaning |
+|---|---|
+| Blue circle | Robot |
+| Yellow square | Box |
+| Green cell/dot | Delivery goal |
+| Dark blocked cell | Wall |
+| Small yellow square on the robot | Robot is carrying the box |
 
-```bash
-docker compose run --rm \
-  -e TRAINER_MODE=ppo \
-  -e PPO_TOTAL_TIMESTEPS=2000 \
-  trainer
-```
+Grid coordinates start at zero. For an `8 × 8` grid, valid X and Y values are
+`0` through `7`. For a `3 × 3` grid, valid values are `0` through `2`.
 
-The root does **not** contain a `package.json`. Do not run `npm install` or `npm run dev` from the root. The Node applications have separate package files under `environment/` and `viewer/`, and Docker installs their dependencies inside their containers.
+`X` moves from left to right. `Y` moves from top to bottom.
 
-## Project structure
+### Status cards
+
+| Card | Meaning |
+|---|---|
+| Reward | Feedback from the most recent action |
+| Episode | Number of times the environment has been reset |
+| Steps | Actions used in the current episode and the episode limit |
+| Socket | Whether live browser updates are connected |
+| Last action | Most recent action selected by the user or trainer |
+| Last result | Result of that action, such as `moved` or `hit_wall` |
+| Robot | Current robot coordinates and whether it carries the box |
+
+An episode is one attempt at completing the warehouse task. It ends when the
+box is delivered or the maximum number of actions is reached. Starting the next
+attempt increases the episode counter.
+
+### Common last-result values
+
+| Result | Meaning |
+|---|---|
+| `moved` | Robot moved successfully |
+| `hit_wall` | Robot tried to enter a wall |
+| `out_of_bounds` | Robot tried to leave the grid |
+| `picked_up_box` | Robot picked up the box |
+| `delivered_box` | Box was dropped on the goal |
+| `not_at_box` | Pick up was selected away from the box |
+| `not_at_goal` | Drop was selected away from the goal |
+| `max_steps_reached` | The episode used all allowed actions |
+
+### Manual controls
+
+The arrow buttons move the robot. **Pick up** works when the robot occupies the
+same cell as the box. **Drop** completes the task only when the robot is carrying
+the box and is on the goal. **Reset Episode** starts a fresh attempt.
+
+Manual controls are mainly for understanding and testing the environment. Avoid
+pressing them during PPO training because the trainer and the browser share one
+warehouse state.
+
+## Starting training from the browser
+
+The browser is the normal way to start a run. Environment variables are only
+deployment defaults or an advanced automation option.
+
+1. Select **Random** or **PPO**.
+2. Choose the number of columns and rows.
+3. Choose the maximum actions allowed per episode.
+4. Expand **Object positions** and place the robot, box, and goal.
+5. Open the mode-specific settings.
+6. Select **Start training**.
+
+Changing the grid size automatically updates valid coordinate limits. The
+warehouse grid changes to the selected layout when the run begins.
+
+## Training modes
+
+### Random mode: a system test, not learning
+
+Random mode selects one of the six actions at random on every step. It has no
+memory and does not update a model. Running it longer does not make it smarter.
+
+Use Random mode to verify that:
+
+- the trainer can reach the environment API;
+- actions, rewards, resets, and live events work;
+- the browser grid updates; and
+- the complete Docker setup is connected correctly.
+
+Random mode may repeatedly hit walls, try to pick up an absent box, or fail to
+deliver. That behavior is expected.
+
+Random settings:
+
+| Setting | Meaning |
+|---|---|
+| Episodes | Number of complete attempts to run |
+| Seed | Makes the same random action sequence reproducible |
+
+### PPO mode: learning from rewards
+
+PPO means **Proximal Policy Optimization**. It is a reinforcement-learning
+algorithm. The model starts with no knowledge of the correct route. It gathers
+experience and changes the weights of a neural network so actions that lead to
+better long-term rewards become more likely.
+
+PPO is not a pretrained language model. It learns this warehouse task from
+scratch.
+
+PPO settings:
+
+| Setting | Beginner explanation |
+|---|---|
+| Training timesteps | Total environment interactions used for learning. More usually takes longer and gives more learning opportunity. |
+| Rollout steps | Experience collected before PPO performs an update. `64` is a reasonable starting value. |
+| Batch size | Number of collected samples processed together. It must not exceed rollout steps. |
+| Learning rate | Size of each neural-network update. The default `0.0003` is a safe starting point. |
+| Gamma | Importance of future rewards. `0.99` tells PPO to care strongly about eventual delivery. |
+| Evaluation episodes | Attempts run after learning to measure the saved policy without further training. |
+
+For a quick connection test, use around `1,000–2,000` timesteps. This is often
+too short to learn reliable behavior. Try `50,000–100,000` timesteps when you
+want to give PPO a real opportunity to improve.
+
+## Training, evaluation, and completion
+
+A PPO run has separate phases:
 
 ```text
-├── environment/              Node/TypeScript simulation and API
-│   ├── src/api/              REST and WebSocket endpoints
-│   ├── src/domain/           Grid, movement, pickup, drop, and rewards
-│   └── test/                 Environment and API tests
-├── trainer/                  Python reinforcement-learning job
-│   ├── src/warehouse_trainer/
-│   ├── tests/                Trainer tests
-│   └── models/               Saved PPO models
-├── viewer/                   Nuxt/Vue browser interface
-│   ├── components/           Grid, controls, and statistics
-│   ├── stores/               API, WebSocket, and frontend state
-│   └── types/                TypeScript API types
-├── shared/                   Shared-contract documentation
-├── docker-compose.yml        Local service orchestration
-└── .env.example              Runtime defaults
+Training → Save model → Evaluation → Completed
 ```
 
-## Architecture and responsibilities
+During **Training**, PPO collects experience and updates the neural network.
+During **Evaluation**, learning has stopped, but the saved policy still controls
+the warehouse for the configured number of evaluation episodes. Therefore, the
+episode and step counters continue moving during evaluation. This is expected;
+it is not a delayed or restarted training job.
+
+The browser status badge shows **Training**, **Evaluating**, and **Completed**.
+
+The trained PPO model is stored at:
 
 ```text
-Browser
-  |
-  | HTTP actions and WebSocket events
-  v
-Viewer (Nuxt/Vue) <----> Environment API (Node/TypeScript)
-                              ^
-                              | HTTP state/reset/step calls
-                              |
-                        Trainer (Python)
+trainer/models/warehouse_ppo.zip
 ```
 
-### Environment
+## Rewards and penalties
 
-Location: `environment/`
+Rewards tell PPO whether an action was useful. The defaults are:
 
-Libraries: Node.js, TypeScript, Fastify, Zod, and `@fastify/websocket`.
+| Event | Reward | Why |
+|---|---:|---|
+| Normal movement | `-1` | Encourages shorter routes |
+| Invalid action | `-5` | Discourages impossible actions |
+| Wall collision | `-5` | Discourages blocked routes |
+| Successful pickup | `+10` | Rewards reaching and collecting the box |
+| Successful delivery | `+50` | Strongly rewards completing the task |
 
-The environment owns the authoritative state: robot position, box position, goal, walls, rewards, episode number, step count, and terminal state. The viewer and trainer request actions; only the environment decides whether they are valid and what reward they receive.
+A negative value in the Reward card is not an application error. It is feedback
+for the agent.
 
-Important files:
+## How the project works
+
+Three services run together:
 
 ```text
-environment/src/main.ts                         Service entry point
-environment/src/app.ts                          Fastify setup
-environment/src/config.ts                       Configuration parsing
-environment/src/api/routes.ts                    REST endpoints
-environment/src/api/websocket.ts                 Live event endpoint
-environment/src/domain/warehouseEnvironment.ts  Simulation rules
-environment/src/domain/grid.ts                  Grid and wall checks
-environment/src/domain/rewardCalculator.ts      Reward mapping
+Browser (port 3000)
+    │
+    ├── starts a run ───────────────► Trainer API (Python, port 8000)
+    │                                      │
+    │                                      │ reset and step requests
+    │                                      ▼
+    └── state + live events ◄────── Environment API (TypeScript, port 3001)
 ```
-
-API endpoints:
-
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `GET` | `/health` | Readiness check |
-| `GET` | `/state` | Current warehouse state |
-| `POST` | `/reset` | Start a new episode |
-| `POST` | `/step` | Apply one action |
-| WebSocket | `/events` | Push state updates to the viewer |
 
 ### Viewer
 
-Location: `viewer/`
+The `viewer/` service uses Nuxt, Vue, Pinia, Tailwind CSS, and TypeScript. It
+displays the grid and statistics, accepts training settings, starts a trainer
+run, provides manual controls, and receives live updates through WebSockets.
 
-Libraries: Nuxt 4, Vue 3, Pinia, Tailwind CSS, and TypeScript.
+### Environment
 
-The viewer runs on port `3000`. It renders the grid, robot, box, goal, walls, reward, episode, step count, last action, and WebSocket status. Manual controls send `/step` and `/reset` requests to the environment.
+The `environment/` service uses Node.js, TypeScript, Fastify, and Zod. It owns
+the real warehouse state and decides whether an action is valid, what reward it
+gets, and whether an episode is finished.
 
-Important files:
+Main endpoints:
 
-```text
-viewer/app.vue                         Main page
-viewer/stores/environment.ts           REST, WebSocket, and UI state
-viewer/components/WarehouseGrid.vue    Grid rendering
-viewer/components/ActionControls.vue   Action buttons
-viewer/components/EnvironmentStats.vue Episode and reward information
-```
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/health` | Check environment availability |
+| `GET` | `/state` | Read current warehouse state |
+| `POST` | `/configure` | Apply the selected grid and object positions |
+| `POST` | `/reset` | Begin another episode |
+| `POST` | `/step` | Apply one robot action |
+| WebSocket | `/events` | Send live changes to the browser |
 
 ### Trainer
 
-Location: `trainer/`
+The `trainer/` service uses Python, FastAPI, Gymnasium, Stable-Baselines3,
+PyTorch, and NumPy. It remains available on port `8000`, accepts the browser's
+configuration, runs Random or PPO, saves the model, performs evaluation, and
+reports the run status.
 
-Libraries: Python, Gymnasium, Stable-Baselines3, PyTorch, NumPy, and Requests.
-
-The trainer is a finite command job, not a permanent server. It runs configured episodes or PPO timesteps, prints results, optionally saves a model, and exits.
-
-Important files:
+## Project folders
 
 ```text
-trainer/src/warehouse_trainer/main.py         Entry point and mode selection
-trainer/src/warehouse_trainer/client.py       Environment HTTP client
-trainer/src/warehouse_trainer/gym_env.py      Gymnasium adapter
-trainer/src/warehouse_trainer/actions.py      Integer/action mapping
-trainer/src/warehouse_trainer/random_agent.py Random baseline
-trainer/src/warehouse_trainer/ppo_trainer.py  PPO training and evaluation
-trainer/src/warehouse_trainer/config.py       Trainer configuration
-trainer/models/                               Persistent model output
+environment/                 TypeScript simulation and API
+trainer/                     Python trainer and saved models
+viewer/                      Browser application
+shared/                      Shared-contract documentation
+docker-compose.yml           Local Docker services
+docker-compose.prod.yml      Production Docker services
+.env.example                 Local default values
+.env.production.example      Production default values
 ```
 
+The root folder intentionally has no `package.json`. Do not run `npm install`
+from the project root. Docker installs each service's dependencies in the
+correct container.
 
-## Trainer modes
-
-### Random mode
+## Useful commands
 
 ```bash
-docker compose run --rm \
-  -e TRAINER_MODE=random \
-  -e RANDOM_AGENT_EPISODES=10 \
-  -e RANDOM_AGENT_SEED=42 \
-  trainer
+# Start or rebuild all services
+docker compose up --build -d
+
+# Show service status
+docker compose ps
+
+# Follow logs
+docker compose logs -f environment trainer viewer
+
+# Restart all services after code changes
+docker compose up --build -d --force-recreate
+
+# Stop services
+docker compose down
 ```
 
-Random mode samples one of six actions on every step. It does not remember, update a model, or improve. It is used to test API connectivity, action handling, rewards, reset behavior, and viewer updates.
-
-Even when it reaches the box, it has only a `1/6` chance of choosing `pickup` next. Repeated mistakes are expected.
-
-| Variable | Meaning |
-|---|---|
-| `TRAINER_MODE=random` | Select random mode |
-| `RANDOM_AGENT_EPISODES` | Episodes to run |
-| `RANDOM_AGENT_SEED` | Reproduce the same random sequence |
-
-### PPO learning mode
-
-```bash
-docker compose run --rm \
-  -e TRAINER_MODE=ppo \
-  -e PPO_TOTAL_TIMESTEPS=100000 \
-  trainer
-```
-
-PPO uses Stable-Baselines3 `MlpPolicy`, a PyTorch multilayer perceptron trained from scratch. It is not a pretrained language or vision model. `2000` timesteps is useful for a short pipeline test; `100000` gives more opportunity to learn but takes longer.
-
-| Variable | Default | Meaning |
-|---|---:|---|
-| `PPO_TOTAL_TIMESTEPS` | `2000` | Environment interactions used for training |
-| `PPO_LEARNING_RATE` | `0.0003` | Neural-network update size |
-| `PPO_N_STEPS` | `64` | Rollout length before an update |
-| `PPO_BATCH_SIZE` | `32` | Samples in each minibatch |
-| `PPO_GAMMA` | `0.99` | Importance of future rewards |
-| `PPO_MODEL_PATH` | `/app/models/warehouse_ppo.zip` | Saved model path |
-| `PPO_EVAL_EPISODES` | `3` | Evaluation episodes after training |
-
-Override multiple variables for one container:
-
-```bash
-docker compose run --rm \
-  -e TRAINER_MODE=ppo \
-  -e PPO_TOTAL_TIMESTEPS=100000 \
-  -e PPO_N_STEPS=128 \
-  -e PPO_BATCH_SIZE=64 \
-  -e PPO_EVAL_EPISODES=10 \
-  trainer
-```
-
-`-e NAME=value` overrides an environment variable for that run only.
-
-
-
-## Manual API checks
+Health checks:
 
 ```bash
 curl http://localhost:3001/health
+curl http://localhost:8000/health
 curl http://localhost:3001/state
-curl -X POST http://localhost:3001/reset
-curl -X POST http://localhost:3001/step \
-  -H 'content-type: application/json' \
-  -d '{"action":"move_right"}'
+curl http://localhost:8000/training/status
 ```
 
 ## Troubleshooting
 
-### `localhost:3000` is not showing the viewer
+### The page does not open
 
 ```bash
-
 docker compose ps
 docker compose logs --tail=100 viewer
-curl -I http://localhost:3000
 ```
 
-Expected services are `environment` as healthy on port `3001` and `viewer` as up on port `3000`.
+Confirm that Docker Desktop is running and port `3000` is not used by another
+application.
 
-If the viewer is missing:
-
-```bash
-docker compose up --build -d viewer
-```
-
-### Viewer says environment state is unavailable
+### The page opens but says disconnected
 
 ```bash
 curl http://localhost:3001/health
-curl http://localhost:3001/state
 docker compose logs --tail=100 environment
 ```
 
-The host browser uses `http://localhost:3001`; the trainer container uses `http://environment:3001`.
-
-After configuration changes, recreate services:
+Rebuild the services if the API is unavailable:
 
 ```bash
-docker compose up --build -d --force-recreate environment viewer
+docker compose up --build -d --force-recreate
 ```
 
-### Viewer is connected but controls are disabled
-
-If the UI shows `100 / 100`, `max_steps_reached`, and `done`, the episode finished normally. Select **Reset Episode** or run:
+### Starting training fails
 
 ```bash
-curl -X POST http://localhost:3001/reset
+curl http://localhost:8000/health
+docker compose logs --tail=200 trainer
 ```
 
-### Trainer shows `Exited (0)`
+Make sure the trainer service is running. For positions, remember that
+coordinates begin at zero. On a `3 × 3` grid, `(3,3)` is outside the grid; the
+bottom-right position is `(2,2)`.
 
-The finite job completed successfully. Start another job when needed:
+### The episode counter keeps increasing after training timesteps finish
 
-```bash
-docker compose run --rm trainer
-```
+PPO is running its evaluation episodes. The UI should display **Evaluating**.
+Wait until the status changes to **Completed**.
 
-For profile-created containers:
+### The robot repeats bad actions
 
-```bash
-docker compose --profile trainer ps -a
-docker compose --profile trainer logs trainer
-```
+- Random mode never learns.
+- A small PPO timestep count is only a pipeline test.
+- PPO begins untrained, so poor early behavior is expected.
+- Larger grids and walls make the task harder.
+- Do not manually control or reset the shared environment during training.
 
-### Trainer cannot connect
+### Steps show `100 / 100` and controls are disabled
 
-```bash
-docker compose up -d environment
-curl http://localhost:3001/health
-docker compose run --rm trainer
-```
-
-Inspect the URL seen by Python:
-
-```bash
-docker compose run --rm trainer \
-  python -c "from warehouse_trainer.config import load_config; print(load_config().environment_base_url)"
-```
-
-It should print `http://environment:3001`.
-
-### Trainer repeats mistakes
-
-Random mode never learns. Use PPO with more timesteps:
-
-```bash
-docker compose run --rm \
-  -e TRAINER_MODE=ppo \
-  -e PPO_TOTAL_TIMESTEPS=100000 \
-  trainer
-```
+The episode reached its action limit. Select **Reset Episode** to begin a new
+attempt.
 
 ### Clean restart
 
 ```bash
 docker compose down
-docker compose up --build -d environment viewer
+docker compose up --build -d
 ```
 
-Do not add `-v` unless you intentionally want to remove Docker volumes.
+## Running tests
 
 ```bash
 docker compose run --rm environment npm test
 docker compose run --rm trainer pytest
 ```
 
-## Recommended workflow
+## Beginner checklist
 
-```bash
-# Terminal 1
-
-docker compose up --build -d environment viewer
-docker compose ps
-curl http://localhost:3001/health
-
-# Terminal 2: short random smoke test
-
-docker compose run --rm \
-  -e TRAINER_MODE=random \
-  -e RANDOM_AGENT_EPISODES=5 \
-  trainer
-
-# Or actual PPO learning
-docker compose run --rm \
-  -e TRAINER_MODE=ppo \
-  -e PPO_TOTAL_TIMESTEPS=100000 \
-  trainer
-```
-
-Open <http://localhost:3000> to observe the environment. Remember: the trainer is a finite job, `--rm` cleans up its temporary container, random mode does not learn, and PPO requires enough experience and an uninterrupted environment to improve.
+1. Start Docker Desktop.
+2. Run `docker compose up --build -d` from the repository root.
+3. Open <http://localhost:3000> and confirm it says `CONNECTED`.
+4. Use Random mode for a short system test.
+5. Use PPO when you want the robot to learn.
+6. Do not manually control the warehouse during PPO training.
+7. Expect the episode counter to move during evaluation.
+8. Use `docker compose logs -f trainer` if a run fails.
