@@ -20,15 +20,25 @@ const ACTION_DELTAS: Readonly<Record<Action, Position | undefined>> = {
 };
 
 export class WarehouseEnvironment {
-  private readonly grid: Grid;
-  private readonly rewardCalculator: RewardCalculator;
+  private grid: Grid;
+  private rewardCalculator: RewardCalculator;
   private episode = 0;
   private state: WarehouseState;
 
-  constructor(private readonly options: WarehouseEnvironmentOptions) {
+  constructor(private options: WarehouseEnvironmentOptions) {
     this.grid = new Grid(options.layout);
     this.rewardCalculator = new RewardCalculator(options.rewards);
     this.state = this.createInitialState(0);
+  }
+
+  configure(options: WarehouseEnvironmentOptions): WarehouseState {
+    const grid = new Grid(options.layout);
+    this.options = options;
+    this.grid = grid;
+    this.rewardCalculator = new RewardCalculator(options.rewards);
+    this.episode += 1;
+    this.state = this.createInitialState(this.episode);
+    return this.getState();
   }
 
   reset(): WarehouseState {

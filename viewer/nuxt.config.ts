@@ -11,6 +11,8 @@ export default defineNuxtConfig({
         process.env.NUXT_PUBLIC_ENVIRONMENT_BASE_URL ??
         process.env.ENVIRONMENT_BASE_URL ??
         'http://localhost:3001',
+      trainerBaseUrl:
+        process.env.NUXT_PUBLIC_TRAINER_BASE_URL ?? 'http://localhost:8000',
     },
   },
   typescript: {

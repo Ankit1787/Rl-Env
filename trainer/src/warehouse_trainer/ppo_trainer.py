@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from warehouse_trainer.random_agent import GymLikeEnvironment
 
@@ -46,15 +46,19 @@ class PpoTrainer:
         env: GymLikeEnvironment,
         config: PpoTrainingConfig,
         ppo_factory: PpoFactory | None = None,
+        on_evaluation_start: Callable[[], None] | None = None,
     ) -> None:
         self._env = env
         self._config = config
         self._ppo_factory = ppo_factory
+        self._on_evaluation_start = on_evaluation_start
 
     def train(self) -> PpoTrainingSummary:
         model = self._create_model()
         model.learn(total_timesteps=self._config.total_timesteps)
         self._save_model(model)
+        if self._on_evaluation_start is not None:
+            self._on_evaluation_start()
         mean_reward = self._evaluate(model)
 
         return PpoTrainingSummary(

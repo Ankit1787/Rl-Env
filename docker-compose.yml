@@ -24,8 +24,8 @@ services:
         condition: service_healthy
     volumes:
       - ./trainer/models:/app/models
-    profiles:
-      - trainer
+    ports:
+      - "${TRAINER_PORT:-8000}:8000"
 
   viewer:
     build:
@@ -36,8 +36,11 @@ services:
     environment:
       # This value is consumed by the browser, so it must use the host-facing URL.
       NUXT_PUBLIC_ENVIRONMENT_BASE_URL: http://localhost:${ENVIRONMENT_PORT:-3001}
+      NUXT_PUBLIC_TRAINER_BASE_URL: http://localhost:${TRAINER_PORT:-8000}
     ports:
       - "${VIEWER_PORT:-3000}:3000"
     depends_on:
       environment:
         condition: service_healthy
+      trainer:
+        condition: service_started

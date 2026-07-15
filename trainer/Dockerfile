@@ -13,4 +13,4 @@ COPY pyproject.toml ./
 COPY src ./src
 COPY tests ./tests
 
-CMD ["python", "-m", "warehouse_trainer.main"]
+CMD ["uvicorn", "warehouse_trainer.api:app", "--host", "0.0.0.0", "--port", "8000"]

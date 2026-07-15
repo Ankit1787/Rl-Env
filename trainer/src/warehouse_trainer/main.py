@@ -36,7 +36,7 @@ def run_random(env: WarehouseGymEnv, config: TrainerConfig) -> None:
         )
 
 
-def run_ppo(env: WarehouseGymEnv, config: TrainerConfig) -> None:
+def run_ppo(env: WarehouseGymEnv, config: TrainerConfig, on_evaluation_start=None) -> None:
     trainer = PpoTrainer(
         env=env,
         config=PpoTrainingConfig(
@@ -48,6 +48,7 @@ def run_ppo(env: WarehouseGymEnv, config: TrainerConfig) -> None:
             model_path=config.ppo_model_path,
             eval_episodes=config.ppo_eval_episodes,
         ),
+        on_evaluation_start=on_evaluation_start,
     )
     summary = trainer.train()
     print(

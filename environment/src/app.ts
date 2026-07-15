@@ -29,6 +29,7 @@ export async function createApp(dependencies: AppDependencies): Promise<FastifyI
   registerRoutes(server, {
     environment,
     broadcaster,
+    rewards: dependencies.config.rewards,
   });
   registerWebSocketRoutes(server, {
     environment,

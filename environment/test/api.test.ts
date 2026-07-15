@@ -90,6 +90,28 @@ describe('environment API', () => {
     await app.close();
   });
 
+  it('reconfigures the grid at runtime', async () => {
+    const app = await createTestApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/configure',
+      payload: {
+        width: 6,
+        height: 5,
+        maxSteps: 75,
+        robotStart: { x: 1, y: 1 },
+        boxStart: { x: 2, y: 2 },
+        goalPosition: { x: 5, y: 4 },
+        walls: [],
+      },
+    });
+    const body = response.json<{ state: { width: number; height: number; maxSteps: number } }>();
+
+    expect(response.statusCode).toBe(200);
+    expect(body.state).toMatchObject({ width: 6, height: 5, maxSteps: 75 });
+    await app.close();
+  });
+
   it('steps the environment with a valid action', async () => {
     const app = await createTestApp();
 

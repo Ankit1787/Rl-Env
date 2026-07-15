@@ -4,6 +4,22 @@ Warehouse RL is a Docker-based reinforcement-learning project. A robot must navi
 
 This README is written for someone running the project for the first time.
 
+## Browser-based training
+
+Start the application once:
+
+```bash
+docker compose up --build -d
+```
+
+Open <http://localhost:3000>. The **Training setup** panel lets a user choose
+Random or PPO mode, grid rows and columns, robot/box/goal positions, episode
+limits, training timesteps, and algorithm settings. Select **Start training**;
+you do not need to pass those values as environment variables for every run.
+
+Environment variables remain available as deployment defaults and for scripted
+or automated runs. The trainer API is exposed on port `8000` by default.
+
 ## Quick start
 
 

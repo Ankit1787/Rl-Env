@@ -25,11 +25,16 @@ services:
       dockerfile: Dockerfile.prod
     env_file:
       - .env.production.example
+    environment:
+      NUXT_PUBLIC_ENVIRONMENT_BASE_URL: ${NUXT_PUBLIC_ENVIRONMENT_BASE_URL:-http://localhost:3001}
+      NUXT_PUBLIC_TRAINER_BASE_URL: ${NUXT_PUBLIC_TRAINER_BASE_URL:-http://localhost:8000}
     ports:
       - "${VIEWER_PORT:-3000}:3000"
     depends_on:
       environment:
         condition: service_healthy
+      trainer:
+        condition: service_started
 
   trainer:
     build:
@@ -42,5 +47,5 @@ services:
         condition: service_healthy
     volumes:
       - ./trainer/models:/app/models
-    profiles:
-      - trainer
+    ports:
+      - "${TRAINER_PORT:-8000}:8000"

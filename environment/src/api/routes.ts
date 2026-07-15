@@ -1,19 +1,21 @@
 import type { FastifyInstance } from 'fastify';
 import { ZodError } from 'zod';
 import type { EventBroadcaster } from './events.js';
-import { stepRequestSchema } from './schemas.js';
+import { configureRequestSchema, stepRequestSchema } from './schemas.js';
+import type { WarehouseRewards } from '../domain/types.js';
 import type { WarehouseEnvironment } from '../domain/warehouseEnvironment.js';
 
 export interface RouteDependencies {
   readonly environment: WarehouseEnvironment;
   readonly broadcaster: EventBroadcaster;
+  readonly rewards: WarehouseRewards;
 }
 
 export function registerRoutes(
   server: FastifyInstance,
   dependencies: RouteDependencies,
 ): void {
-  const { broadcaster, environment } = dependencies;
+  const { broadcaster, environment, rewards } = dependencies;
 
   server.get('/health', () => ({
     status: 'ok',
@@ -34,6 +36,27 @@ export function registerRoutes(
     return {
       state,
     };
+  });
+
+  server.post('/configure', (request, reply) => {
+    try {
+      const body = configureRequestSchema.parse(request.body);
+      const state = environment.configure({
+        layout: body,
+        maxSteps: body.maxSteps,
+        rewards,
+      });
+      broadcaster.publish({ type: 'reset', state });
+      return { state };
+    } catch (error) {
+      if (error instanceof ZodError || error instanceof Error) {
+        return reply.status(400).send({
+          error: 'invalid_configuration',
+          message: error.message,
+        });
+      }
+      throw error;
+    }
   });
 
   server.post('/step', (request, reply) => {

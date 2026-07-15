@@ -3,6 +3,7 @@ import { storeToRefs } from 'pinia';
 import ActionControls from '~/components/ActionControls.vue';
 import EnvironmentStats from '~/components/EnvironmentStats.vue';
 import WarehouseGrid from '~/components/WarehouseGrid.vue';
+import TrainingPanel from '~/components/TrainingPanel.vue';
 import { useEnvironmentStore } from '~/stores/environment';
 
 const environment = useEnvironmentStore();
@@ -47,6 +48,7 @@ onBeforeUnmount(() => {
         </div>
 
         <aside class="flex flex-col gap-4">
+          <TrainingPanel @configured="environment.fetchState" />
           <ActionControls :disabled="!canAct" @step="environment.step" @reset="environment.reset" />
           <section class="rounded border border-white/10 bg-zinc-900 p-4">
             <p class="text-xs uppercase tracking-wide text-zinc-400">Objects</p>
