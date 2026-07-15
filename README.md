@@ -5,16 +5,6 @@ robot moves around a warehouse, finds a box, picks it up, carries it to a goal,
 and drops it there. You can watch everything happen live in a browser and start
 training without typing environment variables for every run.
 
-This project is useful for learning:
-
-- what an agent, environment, action, observation, reward, step, and episode are;
-- the difference between random behavior and a learning algorithm;
-- how a Python reinforcement-learning trainer communicates with an API;
-- how a Vue frontend can display a live training environment; and
-- how Docker Compose runs several connected services together.
-
-No previous reinforcement-learning experience is required.
-
 ## Reinforcement-learning words in simple language
 
 | Word | Meaning in this project |
@@ -85,6 +75,8 @@ PyTorch, Stable-Baselines3, and other dependencies.
 
 Open <http://localhost:3000>.
 
+<img width="2862" height="1610" alt="image" src="https://github.com/user-attachments/assets/aaa817dc-02be-4f03-8c68-17bfb3d8aa50" />
+
 You should see `CONNECTED` near the top-right. You can now configure and start a
 training run from the **Training setup** panel.
 
@@ -95,6 +87,7 @@ docker compose down
 ```
 
 Do not add `-v` unless you intentionally want to remove Docker volumes.
+
 
 ## Understanding the screen
 
@@ -107,6 +100,10 @@ Do not add `-v` unless you intentionally want to remove Docker volumes.
 | Green cell/dot | Delivery goal |
 | Dark blocked cell | Wall |
 | Small yellow square on the robot | Robot is carrying the box |
+
+<img width="2880" height="1632" alt="image" src="https://github.com/user-attachments/assets/b543f4be-27b7-40c9-a9c6-f4ed93b705ba" />
+
+
 
 Grid coordinates start at zero. For an `8 × 8` grid, valid X and Y values are
 `0` through `7`. For a `3 × 3` grid, valid values are `0` through `2`.
@@ -128,6 +125,10 @@ marked with a visible green `G` badge.
 | Last action | Most recent action selected by the user or trainer |
 | Last result | Result of that action, such as `moved` or `hit_wall` |
 | Robot | Current robot coordinates and whether it carries the box |
+
+
+<img width="2840" height="646" alt="image" src="https://github.com/user-attachments/assets/d3785305-d557-41ae-b584-9657ef9f153f" />
+
 
 An episode is one attempt at completing the warehouse task. It ends when the
 box is delivered or the maximum number of actions is reached. Starting the next
@@ -236,6 +237,9 @@ Think of PPO as a student robot with a practice notebook:
 | Learning rate | How strongly the strategy changes after learning from a batch. | `0.0003` makes small, careful changes. A very large value may make learning unstable; a very small value may make learning extremely slow. |
 | Gamma | How much the robot cares about rewards that happen later instead of only the next action. | With `0.99`, the robot strongly values the future `+50` delivery reward, even when it must first make several movements that each cost `-1`. |
 | Evaluation episodes | Number of test attempts after training. The policy is used but its weights are not changed. | With `3`, the trained robot attempts the warehouse task three times and the trainer measures its average reward. |
+
+<img width="2880" height="1628" alt="image" src="https://github.com/user-attachments/assets/5ba66bfa-dd0d-411a-885c-da241c00ec99" />
+
 
 ### Worked PPO example
 
