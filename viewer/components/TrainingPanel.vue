@@ -7,20 +7,28 @@ interface TrainingStatus {
   phase?: 'training' | 'evaluating';
   evaluation_episodes?: number;
   error?: string;
+  result?: {
+    evaluation_episodes: number;
+    successful_deliveries: number;
+    success_rate: number;
+    mean_reward: number;
+    mean_steps: number;
+    model_path?: string;
+  };
 }
 
 const emit = defineEmits<{ configured: [] }>();
 const config = useRuntimeConfig();
 const mode = ref<'random' | 'ppo'>('ppo');
-const width = ref(8);
-const height = ref(8);
-const maxSteps = ref(100);
+const width = ref(4);
+const height = ref(4);
+const maxSteps = ref(10);
 const robotX = ref(0);
 const robotY = ref(0);
-const boxX = ref(2);
-const boxY = ref(2);
-const goalX = ref(7);
-const goalY = ref(7);
+const boxX = ref(1);
+const boxY = ref(1);
+const goalX = ref(3);
+const goalY = ref(3);
 const randomEpisodes = ref(20);
 const randomSeed = ref<number | null>(42);
 const ppoTimesteps = ref(10000);
@@ -53,7 +61,20 @@ function clampPositions(): void {
   goalY.value = Math.min(Math.max(0, goalY.value), maxY);
 }
 
-watch([width, height], clampPositions);
+function clampConfiguration(): void {
+  width.value = Math.min(Math.max(2, Number(width.value) || 2), 30);
+  height.value = Math.min(Math.max(2, Number(height.value) || 2), 30);
+  maxSteps.value = Math.min(Math.max(1, Number(maxSteps.value) || 1), 10000);
+  goalX.value = width.value - 1;
+  goalY.value = height.value - 1;
+  clampPositions();
+}
+
+watch([width, height], () => {
+  goalX.value = Math.max(0, width.value - 1);
+  goalY.value = Math.max(0, height.value - 1);
+  clampPositions();
+});
 
 async function refreshStatus(): Promise<void> {
   try {
@@ -71,6 +92,10 @@ async function refreshStatus(): Promise<void> {
 
 async function startTraining(): Promise<void> {
   errorMessage.value = null;
+  width.value = Math.min(Math.max(2, Number(width.value) || 2), 30);
+  height.value = Math.min(Math.max(2, Number(height.value) || 2), 30);
+  maxSteps.value = Math.min(Math.max(1, Number(maxSteps.value) || 1), 10000);
+  clampPositions();
   try {
     status.value = await $fetch<TrainingStatus>('/training/start', {
       baseURL: config.public.trainerBaseUrl,
@@ -132,16 +157,16 @@ onBeforeUnmount(() => {
           <option value="random">Random — connectivity test</option>
         </select>
       </label>
-      <label class="text-xs text-zinc-400">Columns<input v-model.number="width" class="field mt-1" type="number" min="2" max="30"></label>
-      <label class="text-xs text-zinc-400">Rows<input v-model.number="height" class="field mt-1" type="number" min="2" max="30"></label>
-      <label class="col-span-2 text-xs text-zinc-400">Max actions per episode<input v-model.number="maxSteps" class="field mt-1" type="number" min="1"></label>
+      <label class="text-xs text-zinc-400">Columns<input v-model.number="width" class="field mt-1" type="number" min="2" max="30" @change="clampConfiguration"></label>
+      <label class="text-xs text-zinc-400">Rows<input v-model.number="height" class="field mt-1" type="number" min="2" max="30" @change="clampConfiguration"></label>
+      <label class="col-span-2 text-xs text-zinc-400">Max actions per episode<input v-model.number="maxSteps" class="field mt-1" type="number" min="1" max="10000" @change="clampConfiguration"></label>
     </div>
 
     <details class="mt-4 rounded-lg border border-white/10 bg-black/10 p-3">
       <summary class="cursor-pointer text-sm font-medium text-zinc-200">Object positions</summary>
-      <p class="mt-2 text-xs text-zinc-500">For this grid, X is 0–{{ width - 1 }} and Y is 0–{{ height - 1 }}.</p>
-      <div class="mt-3 grid grid-cols-[1fr_70px_70px] items-center gap-2 text-xs text-zinc-400">
-        <span></span><span>X</span><span>Y</span>
+      <p class="mt-2 text-xs text-zinc-500">Column/X is 0–{{ width - 1 }} from left to right. Row/Y is 0–{{ height - 1 }} from top to bottom.</p>
+      <div class="mt-3 grid grid-cols-[1fr_86px_86px] items-center gap-2 text-xs text-zinc-400">
+        <span></span><span>Column (X)</span><span>Row (Y)</span>
         <span>Robot</span><input v-model.number="robotX" class="field" type="number" min="0" :max="width - 1" @change="clampPositions"><input v-model.number="robotY" class="field" type="number" min="0" :max="height - 1" @change="clampPositions">
         <span>Box</span><input v-model.number="boxX" class="field" type="number" min="0" :max="width - 1" @change="clampPositions"><input v-model.number="boxY" class="field" type="number" min="0" :max="height - 1" @change="clampPositions">
         <span>Goal</span><input v-model.number="goalX" class="field" type="number" min="0" :max="width - 1" @change="clampPositions"><input v-model.number="goalY" class="field" type="number" min="0" :max="height - 1" @change="clampPositions">
@@ -168,6 +193,15 @@ onBeforeUnmount(() => {
     <p v-if="status.phase === 'evaluating'" class="mt-3 text-xs leading-5 text-amber-200/80">
       Training timesteps are complete. The saved policy is now running evaluation episodes, so the warehouse episode counter will continue until evaluation finishes.
     </p>
+    <section v-if="status.state === 'completed' && status.result" class="mt-4 rounded-lg border border-emerald-300/20 bg-emerald-400/5 p-3">
+      <p class="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-300">Evaluation results</p>
+      <div class="mt-3 grid grid-cols-2 gap-2 text-sm">
+        <div class="rounded-md bg-black/20 p-2.5"><p class="text-xs text-zinc-400">Success rate</p><p class="mt-1 font-semibold text-emerald-200">{{ (status.result.success_rate * 100).toFixed(1) }}%</p></div>
+        <div class="rounded-md bg-black/20 p-2.5"><p class="text-xs text-zinc-400">Deliveries</p><p class="mt-1 font-semibold">{{ status.result.successful_deliveries }} / {{ status.result.evaluation_episodes }}</p></div>
+        <div class="rounded-md bg-black/20 p-2.5"><p class="text-xs text-zinc-400">Average reward</p><p class="mt-1 font-semibold">{{ status.result.mean_reward.toFixed(2) }}</p></div>
+        <div class="rounded-md bg-black/20 p-2.5"><p class="text-xs text-zinc-400">Average steps</p><p class="mt-1 font-semibold">{{ status.result.mean_steps.toFixed(1) }}</p></div>
+      </div>
+    </section>
     <button class="mt-4 w-full rounded-lg bg-emerald-400 px-4 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50" :disabled="isRunning" @click="startTraining">
       {{ isRunning ? 'Training in progress…' : `Start ${mode.toUpperCase()} training` }}
     </button>

@@ -20,7 +20,7 @@ def main() -> None:
     run_random(env, config)
 
 
-def run_random(env: WarehouseGymEnv, config: TrainerConfig) -> None:
+def run_random(env: WarehouseGymEnv, config: TrainerConfig):
     runner = RandomAgentRunner(
         env=env,
         episodes=config.random_agent_episodes,
@@ -34,9 +34,10 @@ def run_random(env: WarehouseGymEnv, config: TrainerConfig) -> None:
             f"total_reward={summary.total_reward:.2f} terminated={summary.terminated} "
             f"truncated={summary.truncated} final_reason={summary.final_reason}"
         )
+    return summaries
 
 
-def run_ppo(env: WarehouseGymEnv, config: TrainerConfig, on_evaluation_start=None) -> None:
+def run_ppo(env: WarehouseGymEnv, config: TrainerConfig, on_evaluation_start=None):
     trainer = PpoTrainer(
         env=env,
         config=PpoTrainingConfig(
@@ -55,8 +56,11 @@ def run_ppo(env: WarehouseGymEnv, config: TrainerConfig, on_evaluation_start=Non
         f"ppo_total_timesteps={summary.total_timesteps} "
         f"ppo_eval_episodes={summary.eval_episodes} "
         f"ppo_mean_reward={summary.mean_reward:.2f} "
+        f"ppo_success_rate={summary.success_rate:.2%} "
+        f"ppo_mean_steps={summary.mean_steps:.2f} "
         f"ppo_model_path={summary.model_path}"
     )
+    return summary
 
 
 if __name__ == "__main__":

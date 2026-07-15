@@ -23,12 +23,12 @@ class Position(BaseModel):
 
 class TrainingRequest(BaseModel):
     mode: Literal["random", "ppo"] = "ppo"
-    width: int = Field(default=8, ge=2, le=30)
-    height: int = Field(default=8, ge=2, le=30)
-    max_steps: int = Field(default=100, ge=1, le=10_000)
+    width: int = Field(default=4, ge=2, le=30)
+    height: int = Field(default=4, ge=2, le=30)
+    max_steps: int = Field(default=10, ge=1, le=10_000)
     robot_start: Position = Position(x=0, y=0)
-    box_start: Position = Position(x=2, y=2)
-    goal_position: Position = Position(x=7, y=7)
+    box_start: Position = Position(x=1, y=1)
+    goal_position: Position = Position(x=3, y=3)
     random_episodes: int = Field(default=20, ge=1, le=100_000)
     random_seed: int | None = 42
     ppo_total_timesteps: int = Field(default=10_000, ge=64, le=10_000_000)
@@ -138,11 +138,31 @@ def _run_training(run_id: str, request: TrainingRequest) -> None:
         )
         env = WarehouseGymEnv(HttpWarehouseClient(environment_url, 10))
         if request.mode == "ppo":
-            run_ppo(env, config, lambda: _set_evaluating(run_id, request.ppo_eval_episodes))
+            summary = run_ppo(
+                env,
+                config,
+                lambda: _set_evaluating(run_id, request.ppo_eval_episodes),
+            )
+            result = {
+                "evaluation_episodes": summary.eval_episodes,
+                "successful_deliveries": summary.successful_deliveries,
+                "success_rate": summary.success_rate,
+                "mean_reward": summary.mean_reward,
+                "mean_steps": summary.mean_steps,
+                "model_path": summary.model_path,
+            }
         else:
-            run_random(env, config)
+            summaries = run_random(env, config)
+            successful = sum(item.final_reason == "delivered_box" for item in summaries)
+            result = {
+                "evaluation_episodes": len(summaries),
+                "successful_deliveries": successful,
+                "success_rate": successful / len(summaries),
+                "mean_reward": sum(item.total_reward for item in summaries) / len(summaries),
+                "mean_steps": sum(item.steps for item in summaries) / len(summaries),
+            }
         with _lock:
-            _status.update({"id": run_id, "state": "completed"})
+            _status.update({"id": run_id, "state": "completed", "phase": "completed", "result": result})
     except Exception as error:
         with _lock:
             _status.update({"id": run_id, "state": "failed", "error": str(error)})

@@ -24,11 +24,13 @@ export class WarehouseEnvironment {
   private rewardCalculator: RewardCalculator;
   private episode = 0;
   private state: WarehouseState;
+  private visitCounts = new Map<string, number>();
 
   constructor(private options: WarehouseEnvironmentOptions) {
     this.grid = new Grid(options.layout);
     this.rewardCalculator = new RewardCalculator(options.rewards);
     this.state = this.createInitialState(0);
+    this.resetVisitCounts();
   }
 
   configure(options: WarehouseEnvironmentOptions): WarehouseState {
@@ -38,12 +40,14 @@ export class WarehouseEnvironment {
     this.rewardCalculator = new RewardCalculator(options.rewards);
     this.episode += 1;
     this.state = this.createInitialState(this.episode);
+    this.resetVisitCounts();
     return this.getState();
   }
 
   reset(): WarehouseState {
     this.episode += 1;
     this.state = this.createInitialState(this.episode);
+    this.resetVisitCounts();
     return this.getState();
   }
 
@@ -91,10 +95,13 @@ export class WarehouseEnvironment {
         }
       : this.state.box;
 
+    const movementReward = this.rewardForMovement(nextPosition);
+    this.recordVisit(nextPosition);
+
     return this.advanceStep('moved', true, action, {
       robotPosition: nextPosition,
       box: nextBox,
-    });
+    }, movementReward);
   }
 
   private pickup(action: Action): StepResult {
@@ -140,6 +147,7 @@ export class WarehouseEnvironment {
       readonly box?: WarehouseState['box'];
       readonly done?: boolean;
     } = {},
+    rewardOverride?: number,
   ): StepResult {
     const nextStepCount = this.state.stepCount + 1;
     const reachedMaxSteps = nextStepCount >= this.options.maxSteps;
@@ -149,7 +157,9 @@ export class WarehouseEnvironment {
         ? 'max_steps_reached'
         : undefined;
     const rewardReason = reachedMaxSteps && !changes.done ? 'max_steps_reached' : reason;
-    const reward = this.rewardCalculator.forReason(rewardReason);
+    const reward = reachedMaxSteps && !changes.done
+      ? this.rewardCalculator.forReason(rewardReason)
+      : rewardOverride ?? this.rewardCalculator.forReason(rewardReason);
 
     this.state = {
       ...this.state,
@@ -216,5 +226,34 @@ export class WarehouseEnvironment {
       height: this.options.layout.height,
       lastReward: 0,
     };
+  }
+
+  private rewardForMovement(nextPosition: Position): number {
+    const key = `${nextPosition.x},${nextPosition.y}`;
+    if ((this.visitCounts.get(key) ?? 0) > 0) {
+      return this.options.rewards.repeat;
+    }
+
+    const target = this.state.robot.carryingBox ? this.state.goal : this.state.box.position;
+    const currentDistance = this.manhattanDistance(this.state.robot.position, target);
+    const nextDistance = this.manhattanDistance(nextPosition, target);
+
+    if (nextDistance < currentDistance) return this.options.rewards.closer;
+    if (nextDistance > currentDistance) return this.options.rewards.farther;
+    return this.options.rewards.step;
+  }
+
+  private manhattanDistance(first: Position, second: Position): number {
+    return Math.abs(first.x - second.x) + Math.abs(first.y - second.y);
+  }
+
+  private resetVisitCounts(): void {
+    this.visitCounts = new Map();
+    this.recordVisit(this.state.robot.position);
+  }
+
+  private recordVisit(position: Position): void {
+    const key = `${position.x},${position.y}`;
+    this.visitCounts.set(key, (this.visitCounts.get(key) ?? 0) + 1);
   }
 }

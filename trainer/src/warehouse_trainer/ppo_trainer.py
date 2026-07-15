@@ -9,7 +9,12 @@ class PpoModel(Protocol):
     def learn(self, total_timesteps: int):
         ...
 
-    def predict(self, observation: object, deterministic: bool = True):
+    def predict(
+        self,
+        observation: object,
+        deterministic: bool = True,
+        action_masks: object | None = None,
+    ):
         ...
 
     def save(self, path: str) -> None:
@@ -38,6 +43,9 @@ class PpoTrainingSummary:
     total_timesteps: int
     eval_episodes: int
     mean_reward: float
+    successful_deliveries: int
+    success_rate: float
+    mean_steps: float
 
 
 class PpoTrainer:
@@ -59,13 +67,16 @@ class PpoTrainer:
         self._save_model(model)
         if self._on_evaluation_start is not None:
             self._on_evaluation_start()
-        mean_reward = self._evaluate(model)
+        mean_reward, successful_deliveries, mean_steps = self._evaluate(model)
 
         return PpoTrainingSummary(
             model_path=self._config.model_path,
             total_timesteps=self._config.total_timesteps,
             eval_episodes=self._config.eval_episodes,
             mean_reward=mean_reward,
+            successful_deliveries=successful_deliveries,
+            success_rate=successful_deliveries / self._config.eval_episodes,
+            mean_steps=mean_steps,
         )
 
     def _create_model(self) -> PpoModel:
@@ -85,29 +96,45 @@ class PpoTrainer:
         model_path.parent.mkdir(parents=True, exist_ok=True)
         model.save(str(model_path))
 
-    def _evaluate(self, model: PpoModel) -> float:
+    def _evaluate(self, model: PpoModel) -> tuple[float, int, float]:
         rewards: list[float] = []
+        steps_per_episode: list[int] = []
+        successful_deliveries = 0
 
         for _ in range(self._config.eval_episodes):
             observation, _ = self._env.reset()
             terminated = False
             truncated = False
             total_reward = 0.0
+            steps = 0
+            info: dict[str, object] = {}
 
             while not terminated and not truncated:
-                action, _ = model.predict(observation, deterministic=True)
-                observation, reward, terminated, truncated, _ = self._env.step(int(action))
+                action, _ = model.predict(
+                    observation,
+                    deterministic=True,
+                    action_masks=self._env.action_masks(),
+                )
+                observation, reward, terminated, truncated, info = self._env.step(int(action))
                 total_reward += float(reward)
+                steps += 1
 
             rewards.append(total_reward)
+            steps_per_episode.append(steps)
+            if info.get("reason") == "delivered_box":
+                successful_deliveries += 1
 
         if not rewards:
-            return 0.0
+            return 0.0, 0, 0.0
 
-        return sum(rewards) / len(rewards)
+        return (
+            sum(rewards) / len(rewards),
+            successful_deliveries,
+            sum(steps_per_episode) / len(steps_per_episode),
+        )
 
 
 def _stable_baselines_ppo(policy: str, env: GymLikeEnvironment, **kwargs: Any) -> PpoModel:
-    from stable_baselines3 import PPO
+    from sb3_contrib import MaskablePPO
 
-    return PPO(policy, env, **kwargs)
+    return MaskablePPO(policy, env, **kwargs)

@@ -26,6 +26,9 @@ class FakeEnv:
         self.step_count += 1
         return [0.0], 2.0, self.step_count >= 2, False, {"reason": "delivered_box"}
 
+    def action_masks(self):
+        return [True, True, True, True, True, True]
+
 
 class FakeModel:
     def __init__(self) -> None:
@@ -37,7 +40,7 @@ class FakeModel:
         self.learn_timesteps = total_timesteps
         return self
 
-    def predict(self, observation: object, deterministic: bool = True):
+    def predict(self, observation: object, deterministic: bool = True, action_masks=None):
         self.predictions += 1
         return 0, None
 
@@ -96,3 +99,6 @@ def test_ppo_trainer_learns_saves_and_evaluates(tmp_path: Path) -> None:
     assert summary.total_timesteps == 128
     assert summary.eval_episodes == 2
     assert summary.mean_reward == 4.0
+    assert summary.successful_deliveries == 2
+    assert summary.success_rate == 1.0
+    assert summary.mean_steps == 2.0

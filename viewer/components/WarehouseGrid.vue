@@ -74,11 +74,12 @@ function cellLabel(position: Position): string {
               state.goal,
             )
           "
-          class="absolute bottom-1 right-1 h-2.5 w-2.5 rounded-full bg-emerald-300"
-        />
+          class="absolute right-1 top-1 z-10 flex h-5 w-5 items-center justify-center rounded bg-emerald-400 text-[10px] font-bold text-emerald-950 shadow"
+        >G</span>
         <span
           v-if="
             !state.box.isDelivered &&
+            !state.robot.carryingBox &&
             positionsEqual(
               cellAt((cell - 1) % state.width, Math.floor((cell - 1) / state.width)),
               state.box.position,

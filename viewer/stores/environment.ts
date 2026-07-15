@@ -16,9 +16,9 @@ interface EnvironmentStoreState {
 }
 
 function toWebSocketUrl(baseUrl: string): string {
-  const url = new URL(baseUrl);
+  const url = new URL(baseUrl, window.location.origin);
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-  url.pathname = '/events';
+  url.pathname = `${url.pathname.replace(/\/$/, '')}/events`;
   return url.toString();
 }
 

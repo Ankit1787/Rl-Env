@@ -17,6 +17,9 @@ function createOptions(overrides: Partial<WarehouseEnvironmentOptions> = {}): Wa
     maxSteps: overrides.maxSteps ?? 20,
     rewards: {
       step: -1,
+      closer: 1,
+      farther: -2,
+      repeat: -3,
       invalid: -5,
       pickup: 10,
       delivery: 50,
@@ -46,9 +49,20 @@ describe('WarehouseEnvironment', () => {
     const result = environment.step('move_down');
 
     expect(result.state.robot.position).toEqual({ x: 0, y: 1 });
-    expect(result.reward).toBe(-1);
+    expect(result.reward).toBe(-2);
     expect(result.done).toBe(false);
     expect(result.info).toEqual({ reason: 'moved', valid: true });
+  });
+
+  it('rewards progress toward the box and penalizes repeated cells', () => {
+    const environment = new WarehouseEnvironment(createOptions());
+    environment.reset();
+
+    const closer = environment.step('move_right');
+    const away = environment.step('move_left');
+
+    expect(closer.reward).toBe(1);
+    expect(away.reward).toBe(-3);
   });
 
   it('rejects moves outside the grid', () => {

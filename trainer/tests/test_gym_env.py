@@ -128,12 +128,29 @@ def test_reset_returns_normalized_observation_and_info() -> None:
 
     observation, info = env.reset()
 
-    assert observation.shape == (11,)
+    assert observation.shape == (19,)
     assert observation.dtype == np.float32
     assert np.all(observation >= 0)
     assert np.all(observation <= 1)
     assert info["env_episode"] == 1
     assert info["step_count"] == 0
+    assert observation[11:15].tolist() == [1.0, 0.0, 1.0, 0.0]
+    assert observation[15:19].tolist() == [0.0, 0.0, 0.0, 0.0]
+
+
+def test_action_mask_allows_only_valid_actions() -> None:
+    client = FakeWarehouseClient()
+    env = WarehouseGymEnv(client)
+
+    assert env.action_masks().tolist() == [False, True, False, True, False, False]
+
+    client.current_state = make_state(robot_x=1, box_x=1)
+    env._state = client.current_state
+    assert env.action_masks().tolist() == [False, False, False, False, True, False]
+
+    client.current_state = make_state(robot_x=3, box_x=3, carrying=True)
+    env._state = client.current_state
+    assert env.action_masks().tolist() == [False, False, False, False, False, True]
 
 
 def test_step_sends_discrete_action_to_client() -> None:

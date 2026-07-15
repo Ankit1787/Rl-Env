@@ -17,7 +17,7 @@ class WarehouseGymEnv(gym.Env):
         self.observation_space = spaces.Box(
             low=0.0,
             high=1.0,
-            shape=(11,),
+            shape=(19,),
             dtype=np.float32,
         )
 
@@ -66,6 +66,20 @@ class WarehouseGymEnv(gym.Env):
         goal = state["goal"]
 
         positive_reward_scaled = np.clip(max(float(state["lastReward"]), 0.0) / 100.0, 0.0, 1.0)
+        robot_position = robot["position"]
+        blocked = [
+            self._is_blocked(state, robot_position["x"], robot_position["y"] - 1),
+            self._is_blocked(state, robot_position["x"], robot_position["y"] + 1),
+            self._is_blocked(state, robot_position["x"] - 1, robot_position["y"]),
+            self._is_blocked(state, robot_position["x"] + 1, robot_position["y"]),
+        ]
+        at_box = (
+            robot_position["x"] == box["position"]["x"]
+            and robot_position["y"] == box["position"]["y"]
+        )
+        at_goal = robot_position["x"] == goal["x"] and robot_position["y"] == goal["y"]
+        pickup_valid = at_box and not robot["carryingBox"] and not box["isDelivered"]
+        drop_valid = at_goal and robot["carryingBox"]
 
         return np.array(
             [
@@ -80,9 +94,48 @@ class WarehouseGymEnv(gym.Env):
                 state["stepCount"] / max_steps,
                 float(state["done"]),
                 positive_reward_scaled,
+                *blocked,
+                float(at_box),
+                float(at_goal),
+                float(pickup_valid),
+                float(drop_valid),
             ],
             dtype=np.float32,
         )
+
+    def action_masks(self) -> np.ndarray:
+        state = self._state
+        robot = state["robot"]
+        position = robot["position"]
+        box = state["box"]
+        goal = state["goal"]
+        at_box = position["x"] == box["position"]["x"] and position["y"] == box["position"]["y"]
+        at_goal = position["x"] == goal["x"] and position["y"] == goal["y"]
+        pickup_required = at_box and not robot["carryingBox"] and not box["isDelivered"]
+        drop_required = at_goal and robot["carryingBox"]
+
+        if pickup_required:
+            return np.array([False, False, False, False, True, False], dtype=np.bool_)
+
+        if drop_required:
+            return np.array([False, False, False, False, False, True], dtype=np.bool_)
+
+        return np.array(
+            [
+                not self._is_blocked(state, position["x"], position["y"] - 1),
+                not self._is_blocked(state, position["x"], position["y"] + 1),
+                not self._is_blocked(state, position["x"] - 1, position["y"]),
+                not self._is_blocked(state, position["x"] + 1, position["y"]),
+                False,
+                False,
+            ],
+            dtype=np.bool_,
+        )
+
+    def _is_blocked(self, state: WarehouseState, x: int, y: int) -> float:
+        if x < 0 or y < 0 or x >= state["width"] or y >= state["height"]:
+            return 1.0
+        return float(any(wall["x"] == x and wall["y"] == y for wall in state["walls"]))
 
     def _info_from_state(self, state: WarehouseState) -> dict[str, object]:
         return {

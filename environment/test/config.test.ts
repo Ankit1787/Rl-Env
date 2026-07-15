@@ -7,12 +7,12 @@ describe('loadConfig', () => {
 
     expect(config.port).toBe(3001);
     expect(config.corsOrigin).toBeUndefined();
-    expect(config.gridWidth).toBe(8);
-    expect(config.gridHeight).toBe(8);
-    expect(config.maxSteps).toBe(100);
+    expect(config.gridWidth).toBe(4);
+    expect(config.gridHeight).toBe(4);
+    expect(config.maxSteps).toBe(10);
     expect(config.robotStart).toEqual({ x: 0, y: 0 });
-    expect(config.boxStart).toEqual({ x: 2, y: 2 });
-    expect(config.goalPosition).toEqual({ x: 7, y: 7 });
+    expect(config.boxStart).toEqual({ x: 1, y: 1 });
+    expect(config.goalPosition).toEqual({ x: 3, y: 3 });
     expect(config.walls).toEqual([]);
     expect(config.rewards.delivery).toBe(50);
   });
@@ -29,6 +29,9 @@ describe('loadConfig', () => {
       WAREHOUSE_GOAL_POSITION: '9,8',
       WAREHOUSE_WALLS: '1,1;2,2',
       WAREHOUSE_REWARD_STEP: '-2',
+      WAREHOUSE_REWARD_CLOSER: '2',
+      WAREHOUSE_REWARD_FARTHER: '-3',
+      WAREHOUSE_REWARD_REPEAT: '-4',
       WAREHOUSE_REWARD_INVALID: '-8',
       WAREHOUSE_REWARD_PICKUP: '15',
       WAREHOUSE_REWARD_DELIVERY: '80',
@@ -49,6 +52,9 @@ describe('loadConfig', () => {
     ]);
     expect(config.rewards).toEqual({
       step: -2,
+      closer: 2,
+      farther: -3,
+      repeat: -4,
       invalid: -8,
       pickup: 15,
       delivery: 80,

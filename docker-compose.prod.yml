@@ -1,12 +1,32 @@
 services:
+  nginx:
+    build:
+      context: ./nginx
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    depends_on:
+      environment:
+        condition: service_healthy
+      trainer:
+        condition: service_started
+      viewer:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
   environment:
     build:
       context: ./environment
       dockerfile: Dockerfile.prod
     env_file:
       - .env.production.example
-    ports:
-      - "${ENVIRONMENT_PORT:-3001}:3001"
+    expose:
+      - "3001"
+    restart: unless-stopped
     healthcheck:
       test:
         [
@@ -26,10 +46,11 @@ services:
     env_file:
       - .env.production.example
     environment:
-      NUXT_PUBLIC_ENVIRONMENT_BASE_URL: ${NUXT_PUBLIC_ENVIRONMENT_BASE_URL:-http://localhost:3001}
-      NUXT_PUBLIC_TRAINER_BASE_URL: ${NUXT_PUBLIC_TRAINER_BASE_URL:-http://localhost:8000}
-    ports:
-      - "${VIEWER_PORT:-3000}:3000"
+      NUXT_PUBLIC_ENVIRONMENT_BASE_URL: /api/environment
+      NUXT_PUBLIC_TRAINER_BASE_URL: /api/trainer
+    expose:
+      - "3000"
+    restart: unless-stopped
     depends_on:
       environment:
         condition: service_healthy
@@ -47,5 +68,6 @@ services:
         condition: service_healthy
     volumes:
       - ./trainer/models:/app/models
-    ports:
-      - "${TRAINER_PORT:-8000}:8000"
+    expose:
+      - "8000"
+    restart: unless-stopped

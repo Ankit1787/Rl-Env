@@ -52,10 +52,17 @@ onBeforeUnmount(() => {
           <ActionControls :disabled="!canAct" @step="environment.step" @reset="environment.reset" />
           <section class="rounded border border-white/10 bg-zinc-900 p-4">
             <p class="text-xs uppercase tracking-wide text-zinc-400">Objects</p>
-            <div class="mt-3 space-y-2 font-mono text-sm text-zinc-200">
-              <p>Box: x={{ state.box.position.x }}, y={{ state.box.position.y }}</p>
-              <p>Goal: x={{ state.goal.x }}, y={{ state.goal.y }}</p>
-              <p>Status: {{ state.done ? 'done' : 'active' }}</p>
+            <div class="mt-3 grid grid-cols-[64px_1fr] gap-x-3 gap-y-2 text-sm text-zinc-200">
+              <span class="text-zinc-500">Robot</span>
+              <span class="font-mono">column={{ state.robot.position.x }}, row={{ state.robot.position.y }}</span>
+              <span class="text-zinc-500">Box</span>
+              <span v-if="state.box.isDelivered" class="font-mono text-emerald-300">Delivered</span>
+              <span v-else-if="state.robot.carryingBox" class="font-mono text-amber-300">Carried</span>
+              <span v-else class="font-mono">column={{ state.box.position.x }}, row={{ state.box.position.y }}</span>
+              <span class="text-zinc-500">Goal</span>
+              <span class="font-mono text-emerald-300">column={{ state.goal.x }}, row={{ state.goal.y }}</span>
+              <span class="text-zinc-500">State</span>
+              <span class="font-mono">{{ state.done ? 'Done' : 'Active' }}</span>
             </div>
           </section>
         </aside>

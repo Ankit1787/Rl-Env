@@ -20,25 +20,25 @@ services:
         value: https://warehouse-rl-viewer.onrender.com
 
       - key: WAREHOUSE_GRID_WIDTH
-        value: "8"
+        value: "4"
 
       - key: WAREHOUSE_GRID_HEIGHT
-        value: "8"
+        value: "4"
 
       - key: WAREHOUSE_MAX_STEPS
-        value: "100"
+        value: "10"
 
       - key: WAREHOUSE_ROBOT_START
         value: "0,0"
 
       - key: WAREHOUSE_BOX_START
-        value: "2,2"
+        value: "1,1"
 
       - key: WAREHOUSE_GOAL_POSITION
-        value: "7,7"
+        value: "3,3"
 
       - key: WAREHOUSE_WALLS
-        value: "1,1;1,2;3,4;4,4"
+        value: ""
 
       - key: WAREHOUSE_REWARD_STEP
         value: "-1"

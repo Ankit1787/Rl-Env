@@ -16,6 +16,9 @@ function createTestConfig(): EnvironmentConfig {
     walls: [{ x: 0, y: 1 }],
     rewards: {
       step: -1,
+      closer: 1,
+      farther: -2,
+      repeat: -3,
       invalid: -5,
       pickup: 10,
       delivery: 50,
@@ -131,7 +134,7 @@ describe('environment API', () => {
 
     expect(response.statusCode).toBe(200);
     expect(body.state.robot.position).toEqual({ x: 1, y: 0 });
-    expect(body.reward).toBe(-1);
+    expect(body.reward).toBe(1);
     expect(body.done).toBe(false);
     expect(body.info).toEqual({ reason: 'moved', valid: true });
 

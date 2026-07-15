@@ -19,6 +19,9 @@ export interface BoxState {
 
 export interface WarehouseRewards {
   readonly step: number;
+  readonly closer: number;
+  readonly farther: number;
+  readonly repeat: number;
   readonly invalid: number;
   readonly pickup: number;
   readonly delivery: number;

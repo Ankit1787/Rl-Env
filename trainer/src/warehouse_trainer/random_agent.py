@@ -19,6 +19,9 @@ class GymLikeEnvironment(Protocol):
     def step(self, action: int):
         ...
 
+    def action_masks(self):
+        ...
+
 
 @dataclass(frozen=True)
 class EpisodeSummary:
